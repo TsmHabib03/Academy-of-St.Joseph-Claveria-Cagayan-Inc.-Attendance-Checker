@@ -1,0 +1,37 @@
+# Sensitive Configuration Files
+config/email_config.php
+.env
+
+# Database Configuration (if contains passwords)
+# includes/database.php
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+error_log
+debug.log
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+
+# PHPMailer (if installed via Composer)
+vendor/
+composer.lock
+
+# Backup Files
+*.bak
+*.backup
+*_backup.*

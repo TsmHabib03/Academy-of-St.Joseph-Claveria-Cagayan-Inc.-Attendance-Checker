@@ -6,7 +6,7 @@
 session_start();
 
 // Include main database configuration and initialize connection
-require_once '../includes/database.php';
+require_once __DIR__ . '/../includes/database.php';
 
 // Initialize database connection
 $database = new Database();

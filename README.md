@@ -1,423 +1,1026 @@
-# Attendance Checker System
+# AttendEase - Smart Attendance Management System
 
-A comprehensive web-based attendance management system using QR code scanning technology and LRN (Learner Reference Number) identification. Built with HTML, CSS, JavaScript, PHP, and MySQL.
+A comprehensive web-based attendance management system using QR code scanning technology and LRN (Learner Reference Number) identification. Built with modern web technologies including HTML5, CSS3, JavaScript, PHP 8+, and MySQL 8.
 
 ## 🌟 Features
 
 ### Core Functionality
-- **LRN-based Student Management**: Uses official Learner Reference Numbers as unique identifiers
-- **QR Code Scanning**: Real-time camera-based QR code scanning for attendance
-- **Smart Attendance Logic**: Automatically determines status based on timing and schedule
-- **Schedule Integration**: Matches scans to class periods and subjects automatically
-- **Philippine Timezone Support**: Proper timezone handling for accurate time recording
+- **LRN-based Student Management**: Uses official 11-13 digit Learner Reference Numbers as unique identifiers
+- **Dual QR Code Scanning Systems**: 
+  - Full-screen instant scanner for quick attendance marking
+  - Manual attendance page with integrated QR scanner option
+- **Time In/Time Out Tracking**: Precise attendance recording with entry and exit times
+- **Section-based Organization**: Manage students by grade level and section names
+- **Real-time Dashboard**: Interactive admin dashboard with live statistics and charts
+- **Philippine Timezone Support**: Accurate time recording in Asia/Manila timezone
 
-### Attendance Status Detection
-- **Present**: Student scans within the first 15 minutes of class
-- **Late**: Student scans after 15 minutes but before class ends
-- **Absent**: Student scans after class has ended (recorded for tracking)
-- **No Class**: Break time, vacant periods, or outside class hours
+### Attendance Management
+- **Time In Recording**: Capture student arrival time with QR scan or manual entry
+- **Time Out Recording**: Log student departure time to complete attendance record
+- **Automatic Status Detection**: System determines if attendance record is complete or needs attention
+- **Duplicate Prevention**: Smart detection prevents multiple scans per day per student
+- **Email Notifications**: Configurable email alerts for attendance events
 
-### Management & Reporting
-- **Student Registration**: Add students using their official LRN
-- **Manual Entry**: Backup option for manual attendance marking
-- **Attendance Reports**: Generate detailed reports with status breakdowns
-- **Real-time Schedule Display**: Shows current period and subject information
-- **Export/Print**: Export data to CSV and print reports/QR codes
-- **Responsive Design**: Works on desktop, tablet, and mobile devices
+### Admin Dashboard
+- **Real-time Statistics**: 
+  - Today's total attendance count
+  - Active sections count
+  - Time In records
+  - Total attendance records
+- **Weekly Attendance Trends**: Interactive bar chart showing 7-day Present vs Absent comparison
+- **Section-wise Analysis**: Donut chart displaying today's attendance distribution by section
+- **Recent Activity Feed**: Live list of latest Time In/Time Out records with student details
+- **Needs Attention List**: Quick view of incomplete attendance records (missing Time Out)
+- **Responsive Charts**: Built with Chart.js 4.4.0 for smooth data visualization
+
+### Section Management
+- **Dynamic Section Creation**: Add, edit, and delete sections with grade levels
+- **Section Metadata**: Track adviser names, school year, and active/inactive status
+- **Student Assignment**: Assign students to specific sections during registration
+- **Section Reports**: Generate attendance reports filtered by section
+
+### Student Management
+- **Comprehensive Registration**: Capture first name, middle name, last name, gender, email, class, and section
+- **QR Code Generation**: Automatic unique QR code creation for each student
+- **Bulk Operations**: View, edit, search, and delete students with admin activity logging
+- **Student Details API**: Quick lookup by LRN for real-time information display
+- **Data Validation**: LRN format validation, unique email enforcement, required field checks
+
+### Manual Attendance Interface
+- **Dual Entry Modes**: 
+  - Single Entry: Mark one student at a time with Time In/Time Out
+  - Bulk Entry: Mark multiple students simultaneously
+- **Integrated QR Scanner**: Built-in camera scanner using ZXing library with continuous autofocus
+- **Today's Attendance View**: Real-time table showing all attendance records for current date
+- **Student Auto-complete**: Quick LRN lookup with automatic name and section population
+- **Action Selection**: Choose between Time In, Time Out, or both for flexible marking
+
+### Reporting & Analytics
+- **Date Range Filtering**: Generate reports for specific date periods
+- **Section-based Reports**: Filter attendance by specific sections or grade levels
+- **CSV Export**: Download attendance data in CSV format for external analysis
+- **Activity Logging**: Complete audit trail of all admin actions (login, logout, add, edit, delete)
+- **Status Tracking**: Monitor Present, Absent, Time In, and Time Out records
+
+### Security & Authentication
+- **Admin Login System**: Secure authentication with session management
+- **Password Reset**: Email-based password recovery with token expiration
+- **Activity Logging**: Track all administrative actions with IP address and timestamps
+- **Role-based Access**: Support for admin, teacher, and staff roles
+- **SQL Injection Protection**: Prepared statements and parameterized queries throughout
+
+### Modern UI/UX
+- **Responsive Design**: Fully mobile-friendly interface that works on all devices
+- **Modern CSS Framework**: Custom design system with CSS variables and gradient themes
+- **Poppins Typography**: Clean, professional font family for enhanced readability
+- **Interactive Elements**: Smooth animations, hover effects, and loading states
+- **Dark Mode Ready**: Color scheme prepared for future dark theme implementation
+- **Toast Notifications**: Non-intrusive feedback messages for user actions
 
 ## 📋 Requirements
 
-- Web server with PHP support (Apache/Nginx)
-- MySQL database
-- Modern web browser with camera support
-- PHP 7.4 or higher
-- MySQL 5.7 or higher
+### Server Requirements
+- **Web Server**: Apache 2.4+ or Nginx (XAMPP/WAMP recommended for Windows)
+- **PHP**: Version 8.0 or higher
+- **MySQL**: Version 8.0 or higher
+- **PHP Extensions**: PDO, PDO_MySQL, GD (for QR code generation), OpenSSL (for password hashing)
+
+### Client Requirements
+- Modern web browser with camera support (Chrome, Firefox, Safari, Edge)
+- HTTPS connection (required for camera access)
+- JavaScript enabled
+- Minimum screen resolution: 320px width (mobile-friendly)
 
 ## 🚀 Installation
 
 ### 1. Database Setup
 
-1. Create a MySQL database named `attendance_system`
-2. Run the master setup script:
-   ```bash
-   mysql -u your_username -p < database/master_attendance_system.sql
+1. Create a MySQL database named `attendance_system`:
+   ```sql
+   CREATE DATABASE attendance_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
-   This will create all necessary tables, sample data, and default admin account.
+
+2. Import the database structure using the latest export:
+   ```bash
+   mysql -u your_username -p attendance_system < database/attendance_system.sql
+   ```
+   
+   This will create all necessary tables:
+   - `students` - Student records with LRN, names, email, section
+   - `sections` - Section management with grade levels and advisers
+   - `attendance` - Time In/Time Out records with date tracking
+   - `admin_users` - Admin authentication and roles
+   - `admin_activity_log` - Complete audit trail of admin actions
 
 ### 2. Configuration
 
-1. Edit `includes/database.php` and update your database credentials:
+1. **Database Configuration**: Edit `config/db_config.php`:
    ```php
-   private $host = 'localhost';
-   private $db_name = 'attendance_system';
-   private $username = 'your_mysql_username';
-   private $password = 'your_mysql_password';
+   define('DB_HOST', 'localhost');
+   define('DB_NAME', 'attendance_system');
+   define('DB_USER', 'your_mysql_username');
+   define('DB_PASS', 'your_mysql_password');
    ```
 
-### 3. Web Server Setup
+2. **Email Configuration** (optional): Edit `config/email_config.php` for password reset:
+   ```php
+   define('SMTP_HOST', 'smtp.gmail.com');
+   define('SMTP_USER', 'your-email@gmail.com');
+   define('SMTP_PASS', 'your-app-password');
+   define('SMTP_FROM', 'attendease08@gmail.com');
+   ```
 
-1. Copy all files to your web server directory (e.g., `htdocs`, `www`, or `public_html`)
-2. Ensure the web server has read/write permissions
-3. Access the application through your web browser
+3. **Timezone Setting**: Verify in `config/db_config.php`:
+   ```php
+   date_default_timezone_set('Asia/Manila');
+   ```
 
-### 4. Default Admin Account
+### 3. File Permissions
 
-After installation, you can access the system with:
-- **Username**: admin
-- **Password**: admin123
+Ensure the web server has write permissions for:
+```bash
+chmod 755 uploads/qrcodes/
+chmod 644 logs/
+```
 
-⚠️ **IMPORTANT**: Change this password immediately after first login!
+### 4. Web Server Setup
+
+#### For XAMPP (Windows/Mac/Linux):
+1. Copy the `AttendEase` folder to `C:\xampp\htdocs\`
+2. Start Apache and MySQL from XAMPP Control Panel
+3. Access via `http://localhost/AttendEase/`
+
+#### For Production (Linux):
+1. Copy files to `/var/www/html/attendease/`
+2. Configure virtual host with SSL certificate
+3. Set proper file ownership: `chown -R www-data:www-data /var/www/html/attendease/`
+
+### 5. Default Admin Account
+
+After database import, log in with:
+- **Username**: `admin`
+- **Password**: `admin123456` (MD5 hash: `0192023a7bbd73250516f069df18b500`)
+
+⚠️ **SECURITY WARNING**: Change the default password immediately after first login via the admin dashboard!
 
 ## 🏫 System Logic
 
 ### LRN (Learner Reference Number)
-- **Primary Identifier**: All students are identified by their official 11-13 digit LRN
-- **Format**: Numeric only (e.g., 123456789012)
-- **Unique**: Each LRN must be unique in the system
-- **QR Codes**: Generated using the student's LRN
+- **Primary Identifier**: All students are identified by their official 11-13 digit LRN (Philippines DepEd standard)
+- **Format**: Numeric only (e.g., `136514240419`)
+- **Validation**: System enforces 11-13 digit format during registration
+- **Unique**: Each LRN must be unique in the system (database constraint)
+- **QR Codes**: Generated automatically using the student's LRN as the primary data
 
-### Schedule-Based Attendance
-The system uses a schedule table to automatically detect:
-- Current subject being attended
-- Whether it's class time or break time
-- Appropriate attendance status based on timing
+### Time In/Time Out System
+AttendEase uses a simple, flexible attendance tracking model:
 
-### Time-Based Status Logic
-1. **Early Arrival**: Up to 30 minutes before class starts (allowed)
-2. **Present**: Scanned within first 15 minutes of class period
-3. **Late**: Scanned after 15 minutes but before class ends
-4. **Absent**: Scanned after class has ended
-5. **No Class**: Break periods or vacant time slots
+1. **Time In**: Records when a student arrives
+   - Captured via QR scan or manual entry
+   - Stores exact time in `HH:MM:SS` format
+   - Creates attendance record for current date
+   - Prevents duplicate Time In for same student on same day
 
-### Break Time Handling
-- **Morning Break**: 9:00-9:20 AM - No attendance allowed
-- **Lunch Break**: 11:20-11:40 AM - No attendance allowed
-- **Outside Hours**: Shows "No class scheduled" message
+2. **Time Out**: Records when a student leaves
+   - Captured via QR scan or manual entry
+   - Updates existing attendance record with departure time
+   - Status changes from `time_in` to `time_out` (complete)
+   - Cannot Time Out without existing Time In record
+
+3. **Status Logic**:
+   - `time_in` - Student has arrived but not yet departed
+   - `time_out` - Student has both arrival and departure recorded (complete)
+   - `present` - Legacy status for completed attendance records
+   - `absent` - Manual marking for absent students
+
+### Section-Based Organization
+- **Grade Levels**: Students organized by grade (e.g., Grade 1, Grade 11, Grade 12)
+- **Section Names**: Named sections within grade levels (e.g., BARBERRA, ONGPIN, KALACHUCHI)
+- **Section Metadata**: Each section tracks adviser name, school year, and active/inactive status
+- **Student Assignment**: Every student belongs to one section via the `section` field
+
+### Attendance Record Uniqueness
+- **One Record Per Day**: Database constraint ensures only one attendance record per student per date
+- **Composite Unique Key**: `(lrn, date)` prevents duplicates
+- **Update on Duplicate**: If Time In already exists, Time Out updates the same record
+- **Cascade Delete**: Deleting a student automatically removes all their attendance records
 
 ## 📁 File Structure
 
 ```
-attendance_checker_clean/
-├── index.php                 # Main dashboard
-├── register_student.php      # Student registration form
-├── scan_attendance.php       # QR code scanning interface
-├── view_students.php         # Student management
-├── attendance_report.php     # Reports and analytics
-├── includes/
-│   └── database.php          # Database connection with timezone handling
-├── api/
-│   ├── register_student.php  # Student registration API
-│   ├── mark_attendance.php   # Attendance marking API (with smart logic)
-│   ├── get_students.php      # Student data API
-│   ├── get_attendance_report.php # Report generation API
-│   ├── get_current_schedule.php  # Schedule detection API
-│   └── test_timezone.php     # Timezone verification API
-├── css/
-│   └── style.css             # Application styling
-├── js/
-│   └── main.js               # Frontend JavaScript
-└── database/
-    └── master_attendance_system.sql  # Complete database setup
+AttendEase/
+├── index.php                        # Public landing page
+├── register_student.php             # Student self-registration form
+├── scan_attendance.php              # Full-screen QR code scanner (instant attendance)
+├── view_students.php                # Public student directory
+│
+├── admin/                           # Admin-only area (requires login)
+│   ├── dashboard.php                # Real-time admin dashboard with charts
+│   ├── login.php                    # Admin authentication
+│   ├── logout.php                   # Session termination
+│   ├── forgot_password.php          # Password reset request
+│   ├── reset_password.php           # Password reset form with token
+│   ├── manage_students.php          # Full student CRUD operations
+│   ├── manage_sections.php          # Section management interface
+│   ├── manual_attendance.php        # Manual attendance entry (single/bulk + QR scanner)
+│   ├── attendance_reports_sections.php  # Generate reports by section/date
+│   ├── view_students.php            # Admin student list view
+│   │
+│   ├── includes/                    # Admin UI components
+│   │   ├── header_modern.php        # Admin header with navigation
+│   │   └── footer_modern.php        # Admin footer scripts
+│   │
+│   └── api/                         # Admin-specific APIs
+│       └── dashboard_stats.php      # Dashboard data endpoint
+│
+├── api/                             # Public/shared API endpoints
+│   ├── register_student.php         # Student registration handler
+│   ├── mark_attendance.php          # QR scan attendance marker
+│   ├── get_students.php             # Fetch all students (datatables)
+│   ├── list_students.php            # Student list for dropdowns
+│   ├── get_student_details.php      # Single student lookup by LRN
+│   ├── get_today_attendance.php     # Today's attendance records
+│   ├── delete_student.php           # Student deletion with logging
+│   ├── regenerate_qrcode.php        # QR code regeneration
+│   ├── get_classes.php              # Available classes/sections
+│   ├── get_attendance_report_sections.php  # Report data generator
+│   ├── export_attendance_sections_csv.php  # CSV export handler
+│   ├── request_password_reset.php   # Password reset email sender
+│   └── update_password.php          # Password update handler
+│
+├── config/                          # Configuration files
+│   ├── db_config.php                # Database credentials & timezone
+│   └── email_config.php             # SMTP settings (PHPMailer)
+│
+├── includes/                        # Shared includes
+│   ├── database.php                 # PDO database class
+│   ├── navigation.php               # Public navigation menu
+│   └── qrcode_helper.php            # QR code generation utilities
+│
+├── css/                             # Stylesheets
+│   ├── style.css                    # Legacy/public styles
+│   ├── modern-design.css            # Main admin theme (gradients, variables)
+│   ├── admin-login.css              # Login page styling
+│   ├── manage-students.css          # Student management styles
+│   ├── manage-sections-modern.css   # Section management styles
+│   ├── manual-attendance-modern.css # Manual attendance styles
+│   └── admin-students-mobile.css    # Mobile responsive styles
+│
+├── js/                              # JavaScript files
+│   ├── main.js                      # General utilities
+│   ├── admin-login.js               # Login form handler
+│   ├── admin-students.js            # Student management logic
+│   ├── view_students.js             # Student view interactions
+│   └── qrcode.min.js                # QR code generation library
+│
+├── libs/                            # Third-party libraries
+│   ├── phpqrcode.php                # PHP QR Code generator
+│   └── PHPMailer/                   # Email sending library
+│       ├── PHPMailer.php
+│       ├── SMTP.php
+│       ├── Exception.php
+│       └── ... (other PHPMailer files)
+│
+├── database/                        # Database scripts
+│   ├── attendance_system.sql        # CURRENT DATABASE EXPORT (Nov 1, 2025)
+│   ├── add_section_column_to_students.sql   # Migration: Add section field
+│   ├── add_school_year_column.sql           # Migration: Add school_year to sections
+│   └── fix_sections_table.sql               # Maintenance: Fix sections metadata
+│
+├── uploads/                         # User-generated content
+│   └── qrcodes/                     # Generated QR code images
+│       ├── student_20.png
+│       ├── student_26.png
+│       └── ... (auto-generated)
+│
+├── logs/                            # Application logs
+│
+└── README.md                        # This documentation file
 ```
 
-## 🗓️ Class Schedule
+## � Database Schema
 
-The system comes pre-configured with the 12-BARBERRA class schedule:
+### Core Tables
 
-### Monday - Friday Schedule
-- **Period 1**: 6:00-7:00 AM
-- **Period 2**: 7:00-8:00 AM  
-- **Period 3**: 8:00-9:00 AM
-- **Break**: 9:00-9:20 AM
-- **Period 4**: 9:20-10:20 AM
-- **Period 5**: 10:20-11:20 AM
-- **Break**: 11:20-11:40 AM
-- **Period 6**: 11:40-12:40 PM
-- **Period 7**: 12:40-1:40 PM
+**students**
+- `id` - Auto-increment primary key
+- `lrn` - Unique 11-13 digit Learner Reference Number
+- `first_name`, `middle_name`, `last_name` - Student full name
+- `gender` - ENUM: Male, Female, M, F
+- `email` - Unique email address
+- `class` - Grade level (e.g., "Grade 11")
+- `section` - Section name (e.g., "BARBERRA")
+- `qr_code` - Path to QR code image
+- `created_at` - Registration timestamp
 
-Subjects include Programming, Physical Science, EAP, MIL, PE2, FIL2, 21st Century Literature, and more.
+**sections**
+- `id` - Auto-increment primary key
+- `section_name` - Unique section identifier
+- `grade_level` - Grade level (e.g., "11")
+- `adviser` - Class adviser name
+- `school_year` - Academic year (e.g., "2025-2026")
+- `status` - ENUM: active, inactive
+- `created_at`, `updated_at` - Timestamps
 
-## 🔧 Usage Instructions
+**attendance**
+- `id` - Auto-increment primary key
+- `lrn` - Foreign key to students.lrn (CASCADE DELETE)
+- `date` - Attendance date
+- `time_in` - Arrival time (TIME format)
+- `time_out` - Departure time (TIME format)
+- `section` - Student's section
+- `status` - ENUM: present, absent, time_in, time_out
+- `email_sent` - Boolean flag for notifications
+- `created_at`, `updated_at` - Timestamps
+- **UNIQUE KEY**: `(lrn, date)` - One record per student per day
 
-### Registering Students
-1. Go to "Register Student" page
-2. Enter the student's official LRN (11-13 digits)
-3. Fill in personal information
-4. Select class (12-BARBERRA)
-5. QR code will be automatically generated
+**admin_users**
+- `id` - Auto-increment primary key
+- `username` - Unique admin username
+- `password` - MD5 hashed password
+- `email` - Unique email for password recovery
+- `reset_token`, `reset_token_expires_at` - Password reset functionality
+- `role` - ENUM: admin, teacher, staff
+- `is_active` - Boolean active status
+- `last_login` - Last login timestamp
+- `created_at` - Account creation timestamp
 
-### Taking Attendance
-1. Students scan their QR codes using the "Scan Attendance" page
-2. System automatically determines:
-   - Current subject (based on schedule)
-   - Attendance status (present/late/absent/no_class)
-   - Period information
-3. Duplicate scans per period are prevented
-4. Real-time feedback is provided
+**admin_activity_log**
+- `id` - Auto-increment primary key
+- `admin_id` - Reference to admin_users.id
+- `action` - Action type (LOGIN, LOGOUT, ADD_SECTION, DELETE_STUDENT, etc.)
+- `details` - Detailed description of action
+- `ip_address` - IP address of admin
+- `created_at` - Action timestamp
 
-### Viewing Reports
-1. Access "Attendance Report" page
-2. Filter by date range, student, or status
-3. View detailed statistics and charts
-4. Export to CSV for external analysis
+### Stored Procedures
 
-## 🛠️ Customization
+**RegisterStudent** - Validates and registers new students with LRN format checking
 
-### Adding New Classes
+**MarkTimeIn** - Records student arrival with automatic section lookup and duplicate prevention
+
+**MarkTimeOut** - Records student departure and updates attendance status
+
+## 🔧 Usage Guide
+
+### For Students
+
+#### 1. Self-Registration
+1. Visit `http://localhost/AttendEase/register_student.php`
+2. Enter your 11-13 digit LRN
+3. Fill in your full name (first, middle, last)
+4. Select gender and enter email address
+5. Choose your grade level and section
+6. Click "Register" - QR code is automatically generated
+7. Download or print your QR code for attendance scanning
+
+#### 2. Marking Attendance via QR Scan
+1. Visit `http://localhost/AttendEase/scan_attendance.php`
+2. Allow camera access when prompted
+3. Hold your QR code in front of the camera
+4. System instantly records your Time In or Time Out
+5. View confirmation message with your details and timestamp
+
+### For Teachers/Admins
+
+#### 1. Admin Login
+1. Navigate to `http://localhost/AttendEase/admin/login.php`
+2. Enter username and password (default: `admin` / `admin123456`)
+3. Access admin dashboard with all management features
+
+#### 2. Dashboard Overview
+- View real-time statistics: Today's attendance, active sections, Time In count
+- Monitor weekly attendance trends with interactive bar chart
+- Check section-wise attendance distribution with donut chart
+- See recent Time In/Time Out activity feed
+- Identify incomplete records needing Time Out
+
+#### 3. Managing Sections
+1. Go to **Admin → Manage Sections**
+2. **Add Section**: Click "Add New Section", enter section name, grade level, adviser, school year
+3. **Edit Section**: Click edit icon, update details, save changes
+4. **Delete Section**: Click delete icon (warns if students assigned)
+5. View student count per section in real-time table
+
+#### 4. Managing Students
+1. Go to **Admin → Manage Students**
+2. **Add Student**: Click "Add New Student", fill registration form with LRN, names, email, section
+3. **View Students**: Search, filter, sort using DataTables interface
+4. **Edit Student**: Click edit icon, update information, regenerate QR code if needed
+5. **Delete Student**: Click delete icon (removes all attendance records)
+6. **Print QR Codes**: Click print icon to generate printable QR code card
+
+#### 5. Manual Attendance Entry
+1. Go to **Admin → Manual Attendance**
+2. **Single Entry Mode**:
+   - Enter student LRN (auto-fills name and section)
+   - Select date and action (Time In, Time Out, or Both)
+   - Enter specific time or use current time
+   - Click "Mark Attendance"
+3. **Bulk Entry Mode**:
+   - Select multiple students from list
+   - Choose date and action
+   - Enter time for all selected students
+   - Click "Mark Bulk Attendance"
+4. **QR Scanner Mode**:
+   - Click "QR Scanner" tab
+   - Click "Start Scanner" button
+   - Scan student QR codes directly in the interface
+   - System populates LRN field automatically
+
+#### 6. Generating Reports
+1. Go to **Admin → Attendance Reports**
+2. **Filter Options**:
+   - Select date range (From Date - To Date)
+   - Choose specific section or "All Sections"
+   - Filter by status (All, Present, Time In, Time Out, Absent)
+3. **View Report**: Click "Generate Report" to see results table
+4. **Export CSV**: Click "Export to CSV" to download data
+5. **Analyze**: View summary statistics (total records, present, absent, incomplete)
+
+#### 7. Password Management
+1. **Change Password**: Go to admin profile settings (if implemented)
+2. **Forgot Password**:
+   - Click "Forgot Password?" on login page
+   - Enter registered email address
+   - Check email for reset link
+   - Click link and enter new password
+   - Token expires after set duration for security
+
+## 🛠️ Customization & Extension
+
+### Adding New Sections
 ```sql
-INSERT INTO schedule (class, day_of_week, period_number, start_time, end_time, subject, is_break) 
-VALUES ('NEW-CLASS', 'Monday', 1, '06:00:00', '07:00:00', 'SUBJECT_NAME', FALSE);
+INSERT INTO sections (section_name, grade_level, adviser, school_year, status) 
+VALUES ('SAMPAGUITA', '10', 'Ms. Maria Santos', '2025-2026', 'active');
 ```
 
-### Modifying Schedule
-```sql
-UPDATE schedule 
-SET subject = 'NEW_SUBJECT' 
-WHERE class = '12-BARBERRA' AND day_of_week = 'Monday' AND period_number = 1;
+### Bulk Student Import
+Create a PHP script to import from CSV:
+```php
+// Import students from CSV file
+$csv = array_map('str_getcsv', file('students.csv'));
+foreach ($csv as $row) {
+    // Insert into students table with QR generation
+}
 ```
 
-### Changing Time Rules
-Edit the attendance logic in `api/mark_attendance.php`:
-- Change the 15-minute "present" window
-- Modify early arrival allowance (currently 30 minutes)
-- Adjust break time handling
+### Custom Attendance Rules
+Edit `api/mark_attendance.php` to add custom logic:
+```php
+// Example: Block attendance outside school hours
+$current_hour = (int)date('H');
+if ($current_hour < 6 || $current_hour > 18) {
+    echo json_encode(['success' => false, 'message' => 'Attendance only allowed 6 AM - 6 PM']);
+    exit;
+}
+```
+
+### Email Notification Customization
+Modify `config/email_config.php` and attendance marking logic:
+- Send email on Time In
+- Send email on missing Time Out after school hours
+- Daily attendance summary emails to advisers
+- Weekly reports to parents
+
+### Dashboard Widgets
+Add custom widgets to `admin/dashboard.php`:
+```javascript
+// Example: Add "Late Students" widget
+const lateStudents = data.todayAttendance.filter(record => {
+    const timeIn = new Date(`2000-01-01 ${record.time_in}`);
+    return timeIn.getHours() > 8; // After 8 AM = Late
+});
+```
+
+### Custom Report Types
+Create new report pages in `admin/` folder:
+- Monthly attendance summary by section
+- Student attendance percentage rankings
+- Absent students daily report
+- Section comparison analytics
 
 ## 🔍 Testing & Verification
 
-### Test the System
-1. **Register a test student** with a valid LRN format
-2. **Test QR scanning** during different time periods:
-   - During class time (should mark Present/Late)
-   - During break time (should show "No attendance required")
-   - Outside class hours (should show "No class scheduled")
-3. **Verify timezone** by visiting `api/test_timezone.php`
-4. **Check reports** to ensure data is recorded correctly
+### Quick System Test
 
-### Timezone Verification
-- All times are displayed in Philippine Time (Asia/Manila)
-- Database stores times in local timezone
-- Real-time clock on scan page updates every second
+1. **Test Student Registration**:
+   ```
+   LRN: 136514240419
+   Name: Test Student
+   Email: test@example.com
+   Section: KALACHUCHI
+   ```
+   - Verify QR code is generated in `uploads/qrcodes/`
+   - Check student appears in Manage Students table
+
+2. **Test QR Scanner**:
+   - Visit `scan_attendance.php`
+   - Allow camera access
+   - Scan generated QR code
+   - Verify Time In is recorded in database
+   - Scan again → should record Time Out
+
+3. **Test Manual Attendance**:
+   - Login as admin
+   - Go to Manual Attendance
+   - Enter test LRN → auto-fills student details
+   - Mark Time In → check Today's Attendance table updates
+   - Mark Time Out → verify record is complete
+
+4. **Test Dashboard**:
+   - Check statistics update in real-time
+   - Verify charts display correctly (Chart.js loaded)
+   - Check Recent Activity shows latest records
+   - Verify Needs Attention list shows incomplete records
+
+5. **Test Reports**:
+   - Generate report for today's date
+   - Filter by specific section
+   - Export to CSV and verify data format
+   - Check summary statistics accuracy
+
+### Timezone & Time Verification
+- All times displayed in **Asia/Manila** timezone
+- PHP: `date_default_timezone_set('Asia/Manila')` in `config/db_config.php`
+- Database: Stores TIME and TIMESTAMP in local timezone
+- JavaScript: Uses browser's local time, adjust if needed
+
+### Browser Compatibility Testing
+- ✅ **Chrome/Edge**: Full support (recommended)
+- ✅ **Firefox**: Full support
+- ✅ **Safari**: Full support (iOS 11+)
+- ⚠️ **Camera Access**: Requires HTTPS (except localhost)
 
 ## 🔒 Security Features
 
-- **Input validation** on all forms (LRN format, email validation)
-- **SQL injection protection** using prepared statements
-- **Duplicate prevention** via database constraints
-- **Admin authentication** (basic - enhance as needed)
-- **Stored procedures** for secure data operations
+### Authentication & Authorization
+- **Session-based authentication** for admin area
+- **Password hashing** using MD5 (upgrade to bcrypt recommended)
+- **Password reset tokens** with expiration timestamps
+- **Role-based access control** (admin, teacher, staff roles)
+- **Logout functionality** with session destruction
+- **Login attempt tracking** via activity log
+
+### Data Protection
+- **SQL injection prevention** using PDO prepared statements throughout codebase
+- **XSS protection** via htmlspecialchars() on user outputs
+- **CSRF protection** recommended (add tokens to forms)
+- **Input validation**:
+  - LRN format: 11-13 digits numeric only
+  - Email format: RFC 5322 validation
+  - Date format: YYYY-MM-DD validation
+  - Required field enforcement
+
+### Database Security
+- **Foreign key constraints** with CASCADE DELETE for data integrity
+- **UNIQUE constraints** on LRN and email to prevent duplicates
+- **Stored procedures** for complex operations (RegisterStudent, MarkTimeIn, MarkTimeOut)
+- **Indexed queries** for performance and security
+- **Connection encryption** (configure SSL for MySQL in production)
+
+### File Security
+- **QR code uploads** restricted to `uploads/qrcodes/` directory
+- **File type validation** for QR code generation only
+- **Directory listing disabled** (configure .htaccess)
+- **Write permissions** only on uploads and logs directories
+
+### Audit & Logging
+- **Complete activity log** tracking all admin actions:
+  - LOGIN, LOGOUT events with IP address
+  - ADD_SECTION, EDIT_SECTION, DELETE_SECTION
+  - DELETE_STUDENT with cascade delete count
+  - MANUAL_ATTENDANCE with LRN and timestamp
+- **IP address logging** for accountability
+- **Timestamp tracking** on all database records (created_at, updated_at)
+
+### Recommended Security Enhancements
+1. **Upgrade password hashing**: Replace MD5 with `password_hash()` and `password_verify()`
+   ```php
+   $hash = password_hash($password, PASSWORD_BCRYPT);
+   if (password_verify($input_password, $stored_hash)) { /* success */ }
+   ```
+
+2. **Add CSRF tokens**: Implement in all forms
+   ```php
+   $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+   ```
+
+3. **Rate limiting**: Prevent brute force login attempts
+4. **HTTPS enforcement**: Redirect HTTP to HTTPS in production
+5. **Content Security Policy**: Add CSP headers
+6. **Two-factor authentication**: Add 2FA for admin accounts
 
 ## 🐛 Troubleshooting
 
-### Common Issues
+### Common Issues & Solutions
 
-1. **Camera not working**
-   - Ensure HTTPS connection (required for camera access)
-   - Check browser permissions
-   - Try different browsers
+#### 1. Camera Not Working in QR Scanner
+**Symptoms**: Black screen, "Camera not found" error, or permission denied
 
-2. **Timezone issues**
-   - Verify `date_default_timezone_set('Asia/Manila')` in PHP files
-   - Check MySQL timezone settings
-   - Visit `api/test_timezone.php` for debugging
+**Solutions**:
+- **HTTPS Required**: Camera API requires HTTPS (except on localhost)
+  ```
+  Production: Use SSL certificate
+  Development: http://localhost works fine
+  ```
+- **Browser Permissions**: Check browser settings → Site permissions → Camera → Allow
+- **Browser Compatibility**: Use Chrome/Edge (recommended), Firefox, or Safari
+- **Check Camera in Use**: Close other apps using camera (Zoom, Teams, etc.)
+- **Mobile**: Ensure camera permission granted in phone settings
 
-3. **QR codes not scanning**
-   - Ensure good lighting
-   - Hold code steady and at proper distance
-   - Check if QR code is properly generated
+#### 2. QR Code Not Scanning
+**Symptoms**: Scanner sees QR but doesn't register, or no detection
 
-4. **Database connection errors**
-   - Verify credentials in `includes/database.php`
-   - Check MySQL service is running
-   - Ensure database exists and is accessible
+**Solutions**:
+- **Lighting**: Ensure adequate lighting, avoid glare or shadows
+- **Distance**: Hold QR code 15-30cm from camera
+- **Focus**: Wait 1-2 seconds for camera to autofocus
+- **QR Quality**: Regenerate QR code if damaged or low quality
+- **Print Quality**: Use at least 300 DPI for printed QR codes
+- **Check Browser Console**: Look for JavaScript errors (F12 → Console tab)
 
-## 🚀 Future Enhancements
+#### 3. Database Connection Failed
+**Symptoms**: "Connection failed", blank pages, or 500 errors
 
-- **Mobile app** conversion using WebView or React Native
-- **Push notifications** for attendance reminders
-- **Biometric integration** (fingerprint, face recognition)
-- **Parent portal** for attendance monitoring
-- **Advanced analytics** and dashboards
-- **Multi-class support** with role-based access
-
-## 📞 Support
-
-For issues, questions, or contributions:
-1. Check the troubleshooting section above
-2. Review the file comments for technical details
-3. Test with the provided sample data
-4. Verify timezone settings using the test endpoints
-
-## 📄 License
-
-This project is developed for educational purposes. Feel free to modify and use according to your institution's needs.
-
----
-
-**Note**: This system uses LRN (Learner Reference Number) as the primary student identifier, replacing any previous student ID systems. The schedule-based attendance logic automatically determines attendance status based on timing and class periods.
-
+**Solutions**:
+```php
+// Check config/db_config.php
+define('DB_HOST', 'localhost');      // Correct host?
+define('DB_NAME', 'attendance_system'); // Database exists?
+define('DB_USER', 'root');           // Correct username?
+define('DB_PASS', '');               // Correct password?
 ```
-attendance-checker/
-├── api/                          # PHP API endpoints
-│   ├── get_attendance_report.php # Generate attendance reports
-│   ├── get_dashboard_stats.php   # Dashboard statistics
-│   ├── get_students.php          # Fetch all students
-│   ├── get_student_details.php   # Individual student details
-│   ├── get_today_attendance.php  # Today's attendance
-│   ├── mark_attendance.php       # Mark student attendance
-│   └── register_student.php      # Register new student
-├── css/
-│   └── style.css                 # Main stylesheet
-├── database/
-│   └── setup.sql                 # Database structure
-├── includes/
-│   └── database.php              # Database connection
-├── js/
-│   └── main.js                   # JavaScript utilities
-├── attendance_report.php         # Reports page
-├── index.php                     # Homepage/Dashboard
-├── register_student.php          # Student registration
-├── scan_attendance.php           # QR code scanner
-├── view_students.php             # Student management
-└── README.md                     # This file
-```
+- **Verify MySQL Running**: XAMPP Control Panel → MySQL → Start
+- **Test Connection**: 
+  ```bash
+  mysql -u root -p
+  USE attendance_system;
+  SHOW TABLES;
+  ```
+- **Check Firewall**: Allow MySQL port 3306
+- **PDO Extension**: Verify `extension=pdo_mysql` in php.ini
 
-## 🎯 Usage
+#### 4. Admin Login Not Working
+**Symptoms**: "Invalid credentials", redirect loop, or session errors
 
-### For Teachers/Administrators:
+**Solutions**:
+- **Default Credentials**: Username: `admin`, Password: `admin123456`
+- **Check Database**: 
+  ```sql
+  SELECT * FROM admin_users WHERE username='admin';
+  -- Password should be MD5 hash: 0192023a7bbd73250516f069df18b500
+  ```
+- **Session Issues**: 
+  - Clear browser cache and cookies
+  - Check `session_start()` in PHP files
+  - Verify `session.save_path` in php.ini is writable
+- **Password Reset**: Use "Forgot Password" feature or manually update:
+  ```sql
+  UPDATE admin_users SET password=MD5('newpassword') WHERE username='admin';
+  ```
 
-1. **Register Students**:
-   - Go to "Register Student"
-   - Fill in student details
-   - System generates unique QR code
-   - Print QR code for student
+#### 5. QR Codes Not Generating
+**Symptoms**: Missing QR code images, broken image links
 
-2. **Take Attendance**:
-   - Go to "Scan Attendance"
-   - Allow camera access
-   - Point camera at student QR codes
-   - Attendance is automatically recorded
+**Solutions**:
+- **Check Directory Permissions**:
+  ```bash
+  chmod 755 uploads/qrcodes/
+  # Windows: Right-click folder → Properties → Security → Full Control
+  ```
+- **Verify GD Extension**: Check `extension=gd` in php.ini is enabled
+- **Check File Path**: QR codes saved to `uploads/qrcodes/student_{ID}.png`
+- **Library Present**: Ensure `libs/phpqrcode.php` exists
+- **Regenerate**: Use "Regenerate QR Code" button in Manage Students
 
-3. **View Reports**:
-   - Go to "Attendance Report"
-   - Select date range and class
-   - View detailed statistics and charts
-   - Export to CSV or print reports
+#### 6. Charts Not Displaying on Dashboard
+**Symptoms**: Empty chart areas, "Chart is not defined" error
 
-### For Students:
+**Solutions**:
+- **Check Chart.js CDN**: Verify internet connection or download locally
+  ```html
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  ```
+- **Browser Console**: Check for JavaScript errors (F12 → Console)
+- **Data Issues**: Verify `getDashboardData()` returns valid data
+- **Clear Cache**: Hard refresh (Ctrl+Shift+R / Cmd+Shift+R)
 
-1. Get your QR code from the teacher
-2. Present QR code when attendance is being taken
-3. Keep QR code safe and readable
+#### 7. Email Notifications Not Sending
+**Symptoms**: No password reset emails, SMTP errors
 
-## 🔧 Configuration Options
+**Solutions**:
+- **Configure SMTP**: Edit `config/email_config.php`
+  ```php
+  define('SMTP_HOST', 'smtp.gmail.com');
+  define('SMTP_PORT', 587);
+  define('SMTP_USER', 'your-email@gmail.com');
+  define('SMTP_PASS', 'app-specific-password'); // Not regular Gmail password
+  ```
+- **Gmail App Password**: Enable 2FA and generate app password
+- **Check PHPMailer**: Verify `libs/PHPMailer/` folder exists
+- **Test Email**: Check spam/junk folder
+- **SMTP Logs**: Enable debug mode in PHPMailer
+  ```php
+  $mail->SMTPDebug = 2; // Detailed debug output
+  ```
 
-### Time Settings
-- Modify late threshold in `api/mark_attendance.php` (default: 9:00 AM)
-- Adjust timezone in PHP configuration if needed
+#### 8. Timezone Showing Wrong Time
+**Symptoms**: Times are off by hours, wrong date displayed
 
-### QR Code Settings
-- QR codes are generated using Google QR Code API
-- Format: `STUDENT_ID|TIMESTAMP`
-- Can be customized in `api/register_student.php`
+**Solutions**:
+- **PHP Timezone**: Verify in `config/db_config.php`
+  ```php
+  date_default_timezone_set('Asia/Manila');
+  ```
+- **MySQL Timezone**: Check and set if needed
+  ```sql
+  SET GLOBAL time_zone = '+08:00';
+  SELECT NOW(); -- Should show Philippine time
+  ```
+- **Browser Time**: Check device clock is correct
+- **Server Time**: Verify server timezone matches application
 
-### Classes
-- Modify available classes in registration and filter forms
-- Default classes: 10-A through 12-C
+#### 9. Duplicate Attendance Records
+**Symptoms**: Multiple Time In records for same student same day
 
-## 🛡️ Security Considerations
+**Solutions**:
+- **Database Constraint**: Verify UNIQUE constraint exists
+  ```sql
+  ALTER TABLE attendance ADD UNIQUE KEY unique_daily_attendance (lrn, date);
+  ```
+- **Check API Logic**: `api/mark_attendance.php` should use INSERT...ON DUPLICATE KEY UPDATE
+- **Clear Duplicates**: 
+  ```sql
+  DELETE a1 FROM attendance a1
+  INNER JOIN attendance a2 
+  WHERE a1.id > a2.id AND a1.lrn = a2.lrn AND a1.date = a2.date;
+  ```
 
-1. **Database Security**:
-   - Use strong database passwords
-   - Limit database user permissions
-   - Consider using environment variables for credentials
+#### 10. Slow Performance
+**Symptoms**: Pages load slowly, database queries timeout
 
-2. **Input Validation**:
-   - All inputs are validated and sanitized
-   - Prepared statements prevent SQL injection
+**Solutions**:
+- **Add Indexes**: Ensure indexes exist on frequently queried columns
+  ```sql
+  CREATE INDEX idx_lrn_date ON attendance(lrn, date);
+  CREATE INDEX idx_date_section ON attendance(date, section);
+  ```
+- **Optimize Queries**: Use EXPLAIN to analyze slow queries
+- **Limit Results**: Add pagination to large result sets
+- **Cache Results**: Implement caching for dashboard statistics
+- **MySQL Tuning**: Increase `innodb_buffer_pool_size` in my.cnf
 
-3. **Camera Access**:
-   - Camera access requires user permission
-   - No images are stored or transmitted
+## 🚀 Future Enhancements & Roadmap
 
-## 🌐 Browser Compatibility
+### Phase 1: Core Improvements (Short-term)
+- [ ] **Password Security Upgrade**: Replace MD5 with bcrypt/Argon2
+- [ ] **CSRF Protection**: Add tokens to all forms
+- [ ] **Rate Limiting**: Prevent brute force attacks on login
+- [ ] **Advanced Search**: Full-text search for students with autocomplete
+- [ ] **Bulk QR Print**: Generate PDF with multiple QR codes per page
+- [ ] **Data Validation**: Enhanced client-side and server-side validation
 
-- ✅ Chrome (recommended)
-- ✅ Firefox
-- ✅ Safari
-- ✅ Edge
-- ⚠️ Internet Explorer (limited support)
+### Phase 2: Feature Extensions (Mid-term)
+- [ ] **Parent Portal**: Parents can view their child's attendance history
+- [ ] **SMS Notifications**: Send SMS alerts for attendance events
+- [ ] **Attendance Scheduling**: Set required attendance days/times per section
+- [ ] **Holiday Management**: Mark holidays and exclude from reports
+- [ ] **Late Threshold**: Configurable late time per section
+- [ ] **Excuse Management**: Track excused absences with reason codes
+- [ ] **Multi-school Support**: Tenant isolation for multiple schools
 
-## 📱 Mobile Support
+### Phase 3: Advanced Features (Long-term)
+- [ ] **Mobile Apps**: Native iOS/Android apps with offline support
+- [ ] **Biometric Integration**: Fingerprint and face recognition options
+- [ ] **AI Analytics**: Predictive analytics for attendance patterns
+- [ ] **API Gateway**: RESTful API for third-party integrations
+- [ ] **Real-time Dashboard**: WebSocket-based live updates
+- [ ] **Geofencing**: Location-based attendance (on-campus verification)
+- [ ] **Voice Commands**: Voice-activated attendance marking
+- [ ] **Blockchain Ledger**: Immutable attendance records
 
-The application is fully responsive and works on:
-- Smartphones (iOS/Android)
-- Tablets
-- Desktop computers
+### Integration Possibilities
+- **Google Classroom**: Sync attendance with Google Classroom
+- **Canvas LMS**: Export attendance to Canvas gradebook
+- **PowerSchool**: Bidirectional sync with PowerSchool SIS
+- **Microsoft Teams**: Attendance bot for online classes
+- **Zapier**: Automate workflows with 3000+ apps
 
-## 🎨 Customization
+### Analytics & Reporting Enhancements
+- **Attendance Percentage Rankings**: Leaderboard of best attendance
+- **Trend Analysis**: Identify patterns (Monday absences, etc.)
+- **Cohort Analysis**: Compare attendance across sections/grades
+- **Export Formats**: Excel, PDF, JSON, XML options
+- **Automated Reports**: Schedule daily/weekly email reports
+- **Visualization**: Heat maps, trend lines, pie charts
 
-### Styling
-- Modify `css/style.css` for custom colors and layout
-- Uses CSS Grid and Flexbox for responsive design
-- Gradient backgrounds and modern UI elements
-
-### Functionality
-- Add new fields to student registration
-- Modify attendance rules and late policies
-- Extend reporting features
-
-## 🐛 Troubleshooting
-
-### Common Issues:
-
-1. **Camera not working**:
-   - Ensure HTTPS connection (required for camera access)
-   - Check browser permissions
-   - Try different browser
-
-2. **Database connection errors**:
-   - Verify database credentials
-   - Check database server status
-   - Ensure database exists
-
-3. **QR codes not scanning**:
-   - Ensure good lighting
-   - Clean camera lens
-   - Try manual entry as backup
-
-## 📖 Learning Objectives
-
-This project helps beginners learn:
-
-- **Frontend Development**: HTML5, CSS3, JavaScript (ES6+)
-- **Backend Development**: PHP, MySQL
-- **Web APIs**: Camera access, QR code generation
-- **Database Design**: Relational database structure
-- **Responsive Design**: Mobile-first approach
-- **AJAX**: Asynchronous communication
-- **Data Visualization**: Charts and reports
+### Performance Optimizations
+- **Redis Caching**: Cache frequent queries for faster load times
+- **CDN Integration**: Serve static assets from CDN
+- **Database Sharding**: Horizontal scaling for large deployments
+- **Load Balancing**: Distribute traffic across multiple servers
+- **Progressive Web App**: Installable PWA with offline capabilities
 
 ## 🤝 Contributing
 
-Feel free to:
-- Report bugs
-- Suggest new features
-- Submit pull requests
-- Improve documentation
+We welcome contributions to improve AttendEase! Here's how you can help:
+
+### Bug Reports
+- Check existing issues before creating new ones
+- Include steps to reproduce the bug
+- Provide error messages and screenshots
+- Specify your environment (PHP version, browser, OS)
+
+### Feature Requests
+- Describe the feature and its benefits
+- Explain use cases and expected behavior
+- Consider backward compatibility
+
+### Pull Requests
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request with detailed description
+
+### Development Guidelines
+- Follow PSR-12 coding standards for PHP
+- Use meaningful variable and function names
+- Comment complex logic blocks
+- Test thoroughly before submitting
+- Update README.md if adding new features
+
+## 📞 Support & Contact
+
+### Documentation
+- **README**: You're reading it! Check troubleshooting section first
+- **Code Comments**: Inline documentation in all major files
+- **Database Schema**: See `database/attendance_system.sql` for structure
+
+### Community
+- **GitHub Issues**: Report bugs and request features
+- **GitHub Discussions**: Ask questions and share ideas
+- **Email**: attendease08@gmail.com (official support)
+
+### Professional Support
+For custom development, training, or deployment assistance:
+- Custom features and integrations
+- On-site training for staff
+- Cloud deployment and maintenance
+- Multi-school enterprise setup
 
 ## 📄 License
 
-This project is open-source and available for educational purposes.
+This project is developed for educational purposes and is open-source.
+
+**Terms of Use**:
+- ✅ Free to use for educational institutions
+- ✅ Modify and customize for your needs
+- ✅ Deploy in your school/organization
+- ❌ Do not sell as a commercial product without permission
+- ❌ Do not remove attribution or credits
+
+**Attribution**: Please retain credits and link back to the original repository.
 
 ## 🙏 Acknowledgments
 
-- QR code generation: Google QR Code API
-- Charts: Chart.js library
-- QR code scanning: ZXing library
-- Icons: Unicode emojis
+### Technologies Used
+- **PHP 8+**: Server-side programming
+- **MySQL 8**: Relational database management
+- **Chart.js 4.4.0**: Interactive data visualization
+- **ZXing Library**: QR code scanning (BrowserQRCodeReader)
+- **PHPQRCode**: Server-side QR code generation
+- **PHPMailer**: Email functionality
+- **DataTables**: Advanced table features
+- **Bootstrap Icons**: UI icons
+- **Google Fonts (Poppins)**: Typography
+
+### Inspiration & Credits
+- Built for educational institutions in the Philippines
+- Designed to comply with DepEd (Department of Education) LRN standards
+- Inspired by modern attendance management systems
+- Special thanks to the open-source community
+
+### Project Information
+- **Project Name**: AttendEase
+- **Repository**: Attendance_Checker_12-Barbera-main
+- **Owner**: TsmHabib03
+- **Current Version**: 2.0 (Time In/Time Out System)
+- **Last Updated**: November 1, 2025
+- **License**: Educational Open Source
 
 ---
 
-**Happy Learning! 🎓**
+## 📊 Quick Start Summary
 
-For questions or support, please check the code comments or create an issue.
+```bash
+# 1. Import database
+mysql -u root -p < database/attendance_system.sql
+
+# 2. Configure database
+nano config/db_config.php  # Update credentials
+
+# 3. Set permissions
+chmod 755 uploads/qrcodes/
+
+# 4. Access application
+http://localhost/AttendEase/
+
+# 5. Admin login
+Username: admin
+Password: admin123456
+```
+
+---
+
+**🎓 AttendEase - Making Attendance Easy**
+
+For questions, issues, or contributions, please visit the GitHub repository or contact support.
+
+---
+## 💡 Key Concepts & Technology Stack
+
+### Frontend Stack
+- **HTML5**: Semantic markup, forms, media elements
+- **CSS3**: Modern design system with CSS variables, gradients, animations
+- **JavaScript (ES6+)**: Async/await, fetch API, DOM manipulation
+- **Chart.js 4.4.0**: Interactive bar and donut charts for analytics
+- **ZXing Library**: Browser-based QR code scanning with continuous autofocus
+- **DataTables**: Advanced table features (search, sort, pagination)
+- **Responsive Design**: Mobile-first approach with flexbox and grid
+
+### Backend Stack
+- **PHP 8+**: Modern PHP with type declarations, named arguments
+- **PDO (PHP Data Objects)**: Database abstraction with prepared statements
+- **MySQLi**: Alternative database interface for specific operations
+- **PHPMailer**: SMTP email sending for password resets
+- **PHPQRCode**: Server-side QR code image generation
+- **Session Management**: Secure admin authentication
+
+### Database Stack
+- **MySQL 8.0**: Relational database with InnoDB engine
+- **Stored Procedures**: MarkTimeIn, MarkTimeOut, RegisterStudent
+- **Foreign Keys**: CASCADE DELETE for data integrity
+- **Indexes**: Optimized queries on lrn, date, section
+- **UNIQUE Constraints**: Prevent duplicate attendance records
+- **ENUM Types**: Status fields with fixed values
+
+### Architecture Patterns
+- **MVC-like Structure**: Separation of concerns (views, APIs, config)
+- **RESTful APIs**: JSON responses for frontend-backend communication
+- **Database Abstraction**: Single `Database` class for all connections
+- **Configuration Management**: Centralized config files
+- **Error Handling**: Try-catch blocks with user-friendly messages
+- **Logging**: Admin activity audit trail
+
+### Security Layers
+1. **Input Validation**: Client and server-side validation
+2. **SQL Injection Prevention**: Prepared statements only
+3. **XSS Protection**: Output escaping with htmlspecialchars()
+4. **Session Security**: Regeneration, timeout, secure cookies
+5. **Access Control**: Admin-only routes with authentication check
+6. **Audit Logging**: Track all administrative actions
+
+## 📚 Learning Outcomes
+
+### What You'll Learn by Studying AttendEase
+
+**Database Design**:
+- Relational database schema design
+- Foreign key relationships and cascading
+- Indexing strategies for performance
+- Stored procedures for business logic
+- Data normalization and integrity
+
+**PHP Development**:
+- PDO and prepared statements
+- Session management and authentication
+- File uploads and image generation
+- Email sending with SMTP
+- Error handling and logging
+- API endpoint development
+
+**JavaScript & Frontend**:
+- Camera API and media streams
+- QR code scanning with ZXing
+- Fetch API for asynchronous requests
+- Chart.js for data visualization
+- DOM manipulation and events
+- Form validation and UX feedback
+
+**Web Security**:
+- SQL injection prevention
+- Cross-site scripting (XSS) mitigation
+- Authentication and authorization
+- Password hashing (MD5, bcrypt)
+- CSRF protection concepts
+- Secure session management
+
+**Full-Stack Integration**:
+- Frontend-backend communication
+- API design and JSON responses
+- File system operations
+- Database transactions
+- Real-time data updates
+- Responsive UI/UX design

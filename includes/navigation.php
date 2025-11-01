@@ -28,9 +28,6 @@ function isActive($page, $currentPage, $currentDir = '') {
             <li><a href="index.php" class="<?= isActive('index.php', $currentPage) ?>">
                 <i class="fas fa-home"></i> Home
             </a></li>
-            <li><a href="register_student.php" class="<?= isActive('register_student.php', $currentPage) ?>">
-                <i class="fas fa-user-plus"></i> Register Student
-            </a></li>
             <li><a href="scan_attendance.php" class="<?= isActive('scan_attendance.php', $currentPage) ?>">
                 <i class="fas fa-qrcode"></i> Scan Attendance
             </a></li>

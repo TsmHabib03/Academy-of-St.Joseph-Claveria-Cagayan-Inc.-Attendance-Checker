@@ -1,5 +1,6 @@
 <?php
 require_once '../admin/config.php';
+require_once '../includes/qrcode_helper.php';
 
 header('Content-Type: application/json');
 
@@ -51,6 +52,9 @@ try {
     $stmt->execute([$studentId]);
     
     if ($stmt->rowCount() > 0) {
+        // Delete QR code file
+        deleteStudentQRCode($studentId);
+        
         // Commit transaction
         $pdo->commit();
         

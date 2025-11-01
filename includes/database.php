@@ -2,13 +2,28 @@
 // Set PHP timezone to Philippines
 date_default_timezone_set('Asia/Manila');
 
+// Load database configuration from config file if it exists
+$config_file = __DIR__ . '/../config/db_config.php';
+if (file_exists($config_file)) {
+    require_once $config_file;
+}
+
 // Database configuration
 class Database {
-    private $host = 'localhost';
-    private $db_name = 'attendance_system';
-    private $username = 'root';  // Change this to your MySQL username
-    private $password = 'muning0328';      // Change this to your MySQL password
+    private $host;
+    private $db_name;
+    private $username;
+    private $password;
     private $conn;
+    
+    public function __construct() {
+        // Try to get from environment variables (set by config file)
+        // If not set, use default values
+        $this->host = getenv('DB_HOST') ?: 'localhost';
+        $this->db_name = getenv('DB_NAME') ?: 'attendance_system_new';
+        $this->username = getenv('DB_USER') ?: 'root';
+        $this->password = getenv('DB_PASS') ?: 'muning0328';
+    }
 
     public function getConnection() {
         $this->conn = null;
@@ -24,7 +39,9 @@ class Database {
             $this->conn->exec("SET time_zone = '+08:00'");
             
         } catch(PDOException $exception) {
-            echo "Connection error: " . $exception->getMessage();
+            // Log error instead of echoing it
+            error_log("Database connection error: " . $exception->getMessage());
+            return null;
         }
         return $this->conn;
     }

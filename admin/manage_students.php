@@ -1,11 +1,15 @@
 <?php
 // Manage Students - Add/Edit Form Only
 require_once 'config.php';
+require_once __DIR__ . '/../includes/qrcode_helper.php';
 requireAdmin();
 
 $currentAdmin = getCurrentAdmin();
 $pageTitle = isset($_GET['id']) ? 'Edit Student' : 'Add Student';
-$pageIcon = isset($_GET['id']) ? 'edit' : 'plus';
+$pageIcon = isset($_GET['id']) ? 'user-edit' : 'user-plus';
+
+// Add external CSS for manage students
+$additionalCSS = ['../css/manage-students.css'];
 
 // Initialize variables
 $message = '';
@@ -34,6 +38,55 @@ if (isset($_GET['id'])) {
     }
 }
 
+// Function to auto-create section if it doesn't exist
+function autoCreateSection($pdo, $sectionName, $studentClass = '') {
+    if (empty($sectionName)) {
+        return false;
+    }
+    
+    try {
+        // Check if section already exists
+        $checkStmt = $pdo->prepare("SELECT id FROM sections WHERE section_name = ?");
+        $checkStmt->execute([$sectionName]);
+        
+        if ($checkStmt->rowCount() === 0) {
+            // Extract grade level from student's class field (e.g., "Grade 12" -> "12", "Kindergarten" -> "K")
+            $gradeLevel = '';
+            if (!empty($studentClass)) {
+                if (preg_match('/^Kindergarten$/i', $studentClass)) {
+                    $gradeLevel = 'K';
+                } elseif (preg_match('/^Grade\s+(\d{1,2})$/i', $studentClass, $matches)) {
+                    $gradeLevel = $matches[1];
+                }
+            }
+            
+            // Fallback: Extract from section name if class didn't provide (e.g., "12-BARBERRA" -> "12")
+            if (empty($gradeLevel) && preg_match('/^(\d{1,2})[-_\s]/', $sectionName, $matches)) {
+                $gradeLevel = $matches[1];
+            }
+            
+            // Get current school year
+            $currentYear = date('Y');
+            $nextYear = $currentYear + 1;
+            $schoolYear = $currentYear . '-' . $nextYear;
+            
+            // Insert new section
+            $insertStmt = $pdo->prepare("
+                INSERT INTO sections (section_name, grade_level, school_year, status, created_at) 
+                VALUES (?, ?, ?, 'active', NOW())
+            ");
+            $insertStmt->execute([$sectionName, $gradeLevel, $schoolYear]);
+            
+            return true;
+        }
+        
+        return false; // Section already exists
+    } catch (Exception $e) {
+        error_log("Auto-create section error: " . $e->getMessage());
+        return false;
+    }
+}
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate CSRF token
@@ -49,9 +102,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $gender = trim($_POST['gender'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $class = trim($_POST['class'] ?? '');
+        $section = trim($_POST['section'] ?? '');
+        
+        // Normalize class input (auto-format grade levels)
+        if (!empty($class)) {
+            // If user entered just a number (1-12), convert to "Grade X"
+            if (preg_match('/^(\d{1,2})$/', $class, $matches)) {
+                $gradeNum = intval($matches[1]);
+                if ($gradeNum >= 1 && $gradeNum <= 12) {
+                    $class = "Grade " . $gradeNum;
+                }
+            }
+            // If user entered "K" or "k", convert to "Kindergarten"
+            elseif (preg_match('/^k$/i', $class)) {
+                $class = "Kindergarten";
+            }
+        }
         
         // Validation
-        if (empty($lrn) || empty($firstName) || empty($lastName) || empty($gender) || empty($email) || empty($class)) {
+        if (empty($lrn) || empty($firstName) || empty($lastName) || empty($gender) || empty($email) || empty($class) || empty($section)) {
             $message = "All required fields must be filled.";
             $messageType = "error";
         } elseif (!in_array($gender, ['Male', 'Female'])) {
@@ -63,6 +132,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $message = "Please enter a valid email address.";
             $messageType = "error";
+        } elseif (!preg_match('/^(Kindergarten|Grade\s+([1-9]|1[0-2]))$/i', $class)) {
+            $message = "Grade Level must be Kindergarten or Grade 1 to Grade 12 (e.g., 'Kindergarten', 'Grade 1', 'Grade 11').";
+            $messageType = "error";
         } else {
             try {
                 if ($action === 'add') {
@@ -73,14 +145,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $message = "A student with this LRN already exists.";
                         $messageType = "error";
                     } else {
+                        // Auto-create section if it doesn't exist (pass student's class for grade level extraction)
+                        autoCreateSection($pdo, $section, $class);
+                        
                         // Insert new student
                         $stmt = $pdo->prepare("
-                            INSERT INTO students (lrn, first_name, last_name, middle_name, gender, email, class, created_at) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+                            INSERT INTO students (lrn, first_name, last_name, middle_name, gender, email, class, section, created_at) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
                         ");
-                        $stmt->execute([$lrn, $firstName, $lastName, $middleName, $gender, $email, $class]);
+                        $stmt->execute([$lrn, $firstName, $lastName, $middleName, $gender, $email, $class, $section]);
                         
-                        $message = "Student added successfully!";
+                        // Get the newly inserted student ID
+                        $newStudentId = $pdo->lastInsertId();
+                        
+                        // Generate QR code automatically
+                        $studentFullName = trim($firstName . ' ' . $middleName . ' ' . $lastName);
+                        $qrCodePath = generateStudentQRCode($newStudentId, $lrn, $studentFullName);
+                        
+                        // Update student record with QR code path
+                        if ($qrCodePath) {
+                            $updateStmt = $pdo->prepare("UPDATE students SET qr_code = ? WHERE id = ?");
+                            $updateStmt->execute([$qrCodePath, $newStudentId]);
+                            
+                            $message = "Student added successfully with QR code generated!";
+                        } else {
+                            $message = "Student added successfully, but QR code generation failed. You can regenerate it later.";
+                        }
+                        
                         $messageType = "success";
                         
                         // Clear form data
@@ -94,15 +185,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $message = "Another student with this LRN already exists.";
                         $messageType = "error";
                     } else {
+                        // Auto-create section if it doesn't exist (in case section changed, pass student's class for grade level)
+                        autoCreateSection($pdo, $section, $class);
+                        
                         // Update student
                         $stmt = $pdo->prepare("
                             UPDATE students 
-                            SET lrn = ?, first_name = ?, last_name = ?, middle_name = ?, gender = ?, email = ?, class = ?, updated_at = NOW() 
+                            SET lrn = ?, first_name = ?, last_name = ?, middle_name = ?, gender = ?, email = ?, class = ?, section = ?, updated_at = NOW() 
                             WHERE id = ?
                         ");
-                        $stmt->execute([$lrn, $firstName, $lastName, $middleName, $gender, $email, $class, $editStudent['id']]);
+                        $stmt->execute([$lrn, $firstName, $lastName, $middleName, $gender, $email, $class, $section, $editStudent['id']]);
                         
-                        $message = "Student updated successfully!";
+                        // If LRN changed, regenerate QR code
+                        if ($lrn !== $editStudent['lrn']) {
+                            $studentFullName = trim($firstName . ' ' . $middleName . ' ' . $lastName);
+                            $qrCodePath = regenerateStudentQRCode($editStudent['id'], $lrn, $studentFullName);
+                            
+                            if ($qrCodePath) {
+                                $updateStmt = $pdo->prepare("UPDATE students SET qr_code = ? WHERE id = ?");
+                                $updateStmt->execute([$qrCodePath, $editStudent['id']]);
+                                
+                                $message = "Student updated successfully with QR code regenerated!";
+                            } else {
+                                $message = "Student updated successfully, but QR code regeneration failed.";
+                            }
+                        } else {
+                            $message = "Student updated successfully!";
+                        }
+                        
                         $messageType = "success";
                         
                         // Refresh edit student data
@@ -120,56 +230,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get available classes for suggestions
+// Get available classes and sections for suggestions
 $availableClasses = [];
+$availableSections = [];
 try {
-    $stmt = $pdo->query("SELECT DISTINCT class FROM students ORDER BY class");
+    $stmt = $pdo->query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class");
     $availableClasses = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    $stmt = $pdo->query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != '' ORDER BY section");
+    $availableSections = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (Exception $e) {
     // Ignore error, just won't have suggestions
 }
 
-include 'includes/header.php';
+include 'includes/header_modern.php';
 ?>
+
+<!-- Page Header - Enhanced Design -->
+<div class="page-header-enhanced">
+    <div class="page-header-background">
+        <div class="header-gradient-overlay"></div>
+        <div class="header-pattern"></div>
+    </div>
+    <div class="page-header-content-enhanced">
+        <div class="page-title-section">
+            <div class="page-icon-enhanced">
+                <i class="fas fa-<?php echo $pageIcon; ?>"></i>
+            </div>
+            <div class="page-title-content">
+                <div class="breadcrumb-nav">
+                    <a href="dashboard.php" class="breadcrumb-link">
+                        <i class="fas fa-home"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <i class="fas fa-chevron-right breadcrumb-separator"></i>
+                    <a href="view_students.php" class="breadcrumb-link">
+                        <i class="fas fa-users"></i>
+                        <span>Students</span>
+                    </a>
+                    <i class="fas fa-chevron-right breadcrumb-separator"></i>
+                    <span class="breadcrumb-current"><?php echo $pageTitle; ?></span>
+                </div>
+                <h1 class="page-title-enhanced"><?php echo $pageTitle; ?></h1>
+                <p class="page-subtitle-enhanced">
+                    <i class="fas fa-info-circle"></i>
+                    <span><?php echo $editMode ? 'Update student information and manage records' : 'Register a new student in the system'; ?></span>
+                </p>
+            </div>
+        </div>
+        <div class="page-actions-enhanced">
+            <?php if ($editMode): ?>
+                <button class="btn-header btn-header-secondary" onclick="window.location.reload()">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
+                <a href="manage_students.php" class="btn-header btn-header-primary">
+                    <i class="fas fa-user-plus"></i>
+                    <span>Add New</span>
+                </a>
+            <?php else: ?>
+                <a href="view_students.php" class="btn-header btn-header-secondary">
+                    <i class="fas fa-list"></i>
+                    <span>View All</span>
+                </a>
+                <button class="btn-header btn-header-primary" onclick="document.getElementById('lrn').focus()">
+                    <i class="fas fa-keyboard"></i>
+                    <span>Quick Start</span>
+                </button>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
 
 <!-- Page Content -->
 <?php if ($message): ?>
-    <div class="alert alert-<?php echo $messageType; ?>">
-        <i class="fas fa-<?php echo $messageType === 'success' ? 'check-circle' : 'exclamation-circle'; ?>"></i>
-        <?php echo sanitizeOutput($message); ?>
+    <div class="alert alert-<?php echo $messageType; ?>" style="margin-bottom: var(--space-6); animation: slideDown 0.3s ease;">
+        <div class="alert-icon">
+            <i class="fas fa-<?php echo $messageType === 'success' ? 'check-circle' : 'exclamation-circle'; ?>"></i>
+        </div>
+        <div class="alert-content">
+            <?php echo sanitizeOutput($message); ?>
+        </div>
     </div>
 <?php endif; ?>
 
-<!-- Navigation Breadcrumb -->
-<div class="breadcrumb">
-    <a href="view_students.php">
-        <i class="fas fa-users"></i> Students List
-    </a>
-    <span class="separator">/</span>
-    <span class="current">
-        <i class="fas fa-<?php echo $editMode ? 'edit' : 'plus'; ?>"></i>
-        <?php echo $editMode ? 'Edit Student' : 'Add Student'; ?>
-    </span>
-</div>
-
 <!-- Student Form -->
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">
-            <i class="fas fa-<?php echo $editMode ? 'edit' : 'plus'; ?>"></i>
+<div class="form-card">
+    <div class="form-card-header">
+        <h3 class="form-card-title">
+            <i class="fas fa-<?php echo $editMode ? 'user-edit' : 'user-plus'; ?>"></i>
             <?php echo $editMode ? 'Edit Student' : 'Add New Student'; ?>
         </h3>
         <div class="card-actions">
-            <a href="view_students.php" class="btn btn-secondary btn-sm">
-                <i class="fas fa-arrow-left"></i> Back to List
+            <a href="view_students.php" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i>
+                <span>Back to List</span>
             </a>
         </div>
     </div>
-    <div class="card-body">
+    <div class="form-card-body">
         <?php if ($editMode && !$editStudent): ?>
             <div class="alert alert-error">
-                <i class="fas fa-exclamation-triangle"></i>
-                Student not found. <a href="view_students.php">Return to student list</a>
+                <div class="alert-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="alert-content">
+                    Student not found. <a href="view_students.php" style="color: inherit; text-decoration: underline;">Return to student list</a>
+                </div>
             </div>
         <?php else: ?>
             <form method="POST" action="" class="student-form">
@@ -179,13 +346,16 @@ include 'includes/header.php';
                     <input type="hidden" name="id" value="<?php echo $editStudent['id']; ?>">
                 <?php endif; ?>
                 
-                <div class="form-grid">
+                <div class="form-grid two-col">
                     <div class="form-group">
-                        <label for="lrn">LRN (Learner Reference Number) *</label>
+                        <label for="lrn">
+                            LRN (Learner Reference Number)
+                            <span class="required">*</span>
+                        </label>
                         <input type="text" 
                                id="lrn" 
                                name="lrn" 
-                               class="form-control" 
+                               class="form-input" 
                                required 
                                pattern="[0-9]{11,13}" 
                                maxlength="13" 
@@ -196,32 +366,90 @@ include 'includes/header.php';
                     </div>
                     
                     <div class="form-group">
-                        <label for="class">Class *</label>
-                        <input type="text" 
-                               id="class" 
-                               name="class" 
-                               class="form-control" 
-                               required 
-                               maxlength="50"
-                               placeholder="Enter class (e.g., Grade 11-A, STEM-1)"
-                               value="<?php echo sanitizeOutput($editStudent['class'] ?? ''); ?>"
-                               list="class-suggestions">
-                        <datalist id="class-suggestions">
-                            <?php foreach ($availableClasses as $className): ?>
-                                <option value="<?php echo sanitizeOutput($className); ?>">
-                            <?php endforeach; ?>
-                        </datalist>
-                        <small class="form-help">Student's class or section</small>
+                        <label for="class">
+                            Grade Level (Class)
+                            <span class="required">*</span>
+                        </label>
+                        <select id="class" 
+                                name="class" 
+                                class="form-select" 
+                                required>
+                            <option value="">Select Grade Level</option>
+                            <optgroup label="Early Childhood">
+                                <?php 
+                                $earlyGrades = ['Kindergarten'];
+                                foreach ($earlyGrades as $grade): 
+                                    $selected = (($editStudent['class'] ?? '') === $grade) ? 'selected' : '';
+                                ?>
+                                    <option value="<?php echo $grade; ?>" <?php echo $selected; ?>><?php echo $grade; ?></option>
+                                <?php endforeach; ?>
+                            </optgroup>
+                            <optgroup label="Elementary">
+                                <?php 
+                                $elementaryGrades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+                                foreach ($elementaryGrades as $grade): 
+                                    $selected = (($editStudent['class'] ?? '') === $grade) ? 'selected' : '';
+                                ?>
+                                    <option value="<?php echo $grade; ?>" <?php echo $selected; ?>><?php echo $grade; ?></option>
+                                <?php endforeach; ?>
+                            </optgroup>
+                            <optgroup label="Junior High School">
+                                <?php 
+                                $juniorGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+                                foreach ($juniorGrades as $grade): 
+                                    $selected = (($editStudent['class'] ?? '') === $grade) ? 'selected' : '';
+                                ?>
+                                    <option value="<?php echo $grade; ?>" <?php echo $selected; ?>><?php echo $grade; ?></option>
+                                <?php endforeach; ?>
+                            </optgroup>
+                            <optgroup label="Senior High School">
+                                <?php 
+                                $seniorGrades = ['Grade 11', 'Grade 12'];
+                                foreach ($seniorGrades as $grade): 
+                                    $selected = (($editStudent['class'] ?? '') === $grade) ? 'selected' : '';
+                                ?>
+                                    <option value="<?php echo $grade; ?>" <?php echo $selected; ?>><?php echo $grade; ?></option>
+                                <?php endforeach; ?>
+                            </optgroup>
+                        </select>
+                        <small class="form-help">Student's grade level (Kindergarten to Grade 12)</small>
                     </div>
                 </div>
                 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="first_name">First Name *</label>
+                        <label for="section">
+                            Section
+                            <span class="required">*</span>
+                        </label>
+                        <input type="text" 
+                               id="section" 
+                               name="section" 
+                               class="form-input" 
+                               required 
+                               maxlength="100"
+                               placeholder="Enter section name (e.g., BARBERRA, SAMPAGUITA, A, B)"
+                               value="<?php echo sanitizeOutput($editStudent['section'] ?? ''); ?>"
+                               list="section-suggestions">
+                        <datalist id="section-suggestions">
+                            <?php foreach ($availableSections as $sectionName): ?>
+                                <option value="<?php echo sanitizeOutput($sectionName); ?>">
+                            <?php endforeach; ?>
+                        </datalist>
+                        <small class="form-help">Student's section (e.g., BARBERRA, SAMPAGUITA, Kalachuchi)</small>
+                    </div>
+                </div>
+                
+                <div class="form-grid three-col">
+                    <div class="form-group">
+                        <label for="first_name">
+                            First Name
+                            <span class="required">*</span>
+                        </label>
                         <input type="text" 
                                id="first_name" 
                                name="first_name" 
-                               class="form-control" 
+                               class="form-input" 
                                required 
                                maxlength="50"
                                placeholder="Enter first name"
@@ -233,18 +461,21 @@ include 'includes/header.php';
                         <input type="text" 
                                id="middle_name" 
                                name="middle_name" 
-                               class="form-control" 
+                               class="form-input" 
                                maxlength="50"
                                placeholder="Enter middle name (optional)"
                                value="<?php echo sanitizeOutput($editStudent['middle_name'] ?? ''); ?>">
                     </div>
                     
                     <div class="form-group">
-                        <label for="last_name">Last Name *</label>
+                        <label for="last_name">
+                            Last Name
+                            <span class="required">*</span>
+                        </label>
                         <input type="text" 
                                id="last_name" 
                                name="last_name" 
-                               class="form-control" 
+                               class="form-input" 
                                required 
                                maxlength="50"
                                placeholder="Enter last name"
@@ -252,12 +483,15 @@ include 'includes/header.php';
                     </div>
                 </div>
                 
-                <div class="form-grid">
+                <div class="form-grid two-col">
                     <div class="form-group">
-                        <label for="gender">Gender *</label>
+                        <label for="gender">
+                            Gender
+                            <span class="required">*</span>
+                        </label>
                         <select id="gender" 
                                 name="gender" 
-                                class="form-control" 
+                                class="form-select" 
                                 required>
                             <option value="">Select Gender</option>
                             <option value="Male" <?php echo (($editStudent['gender'] ?? '') === 'Male') ? 'selected' : ''; ?>>Male</option>
@@ -267,11 +501,14 @@ include 'includes/header.php';
                     </div>
                     
                     <div class="form-group">
-                        <label for="email">Email Address *</label>
+                        <label for="email">
+                            Email Address
+                            <span class="required">*</span>
+                        </label>
                         <input type="email" 
                                id="email" 
                                name="email" 
-                               class="form-control" 
+                               class="form-input" 
                                required 
                                maxlength="100"
                                placeholder="Enter email address"
@@ -283,14 +520,16 @@ include 'includes/header.php';
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-<?php echo $editMode ? 'save' : 'plus'; ?>"></i>
-                        <?php echo $editMode ? 'Update Student' : 'Add Student'; ?>
+                        <span><?php echo $editMode ? 'Update Student' : 'Add Student'; ?></span>
                     </button>
                     <a href="view_students.php" class="btn btn-secondary">
-                        <i class="fas fa-times"></i> Cancel
+                        <i class="fas fa-times"></i>
+                        <span>Cancel</span>
                     </a>
                     <?php if ($editMode): ?>
-                        <a href="manage_students.php" class="btn btn-info">
-                            <i class="fas fa-plus"></i> Add New Student
+                        <a href="manage_students.php" class="btn btn-success">
+                            <i class="fas fa-plus"></i>
+                            <span>Add New Student</span>
                         </a>
                     <?php endif; ?>
                 </div>
@@ -301,141 +540,263 @@ include 'includes/header.php';
 
 <?php if ($editMode && $editStudent): ?>
     <!-- Additional Information -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-info-circle"></i> Student Information
-            </h3>
-        </div>
-        <div class="card-body">
-            <div class="info-grid">
-                <div class="info-item">
-                    <label>Registration Date:</label>
-                    <span><?php echo date('F d, Y g:i A', strtotime($editStudent['created_at'])); ?></span>
-                </div>
-                <div class="info-item">
-                    <label>Last Updated:</label>
-                    <span><?php echo date('F d, Y g:i A', strtotime($editStudent['updated_at'] ?? $editStudent['created_at'])); ?></span>
-                </div>
-                <div class="info-item">
-                    <label>Student ID:</label>
-                    <span>#<?php echo $editStudent['id']; ?></span>
-                </div>
+    <div class="info-card">
+        <h3 class="form-card-title" style="margin-bottom: var(--space-5);">
+            <i class="fas fa-info-circle"></i>
+            Student Information
+        </h3>
+        
+        <div class="info-grid">
+            <div class="info-item">
+                <label>Student ID</label>
+                <span>#<?php echo str_pad($editStudent['id'], 5, '0', STR_PAD_LEFT); ?></span>
             </div>
-            
-            <div class="quick-actions">
-                <h4>Quick Actions</h4>
-                <div class="action-buttons">
-                    <button onclick="generateQR('<?php echo sanitizeOutput($editStudent['lrn']); ?>', '<?php echo sanitizeOutput($editStudent['first_name'] . ' ' . $editStudent['last_name']); ?>')" 
-                            class="btn btn-info btn-sm">
-                        <i class="fas fa-qrcode"></i> Generate QR Code
-                    </button>
-                    <a href="attendance_reports.php?lrn=<?php echo urlencode($editStudent['lrn']); ?>" 
-                       class="btn btn-success btn-sm" target="_blank">
-                        <i class="fas fa-chart-line"></i> View Attendance
-                    </a>
-                    <button onclick="confirmDelete()" class="btn btn-danger btn-sm">
-                        <i class="fas fa-trash"></i> Delete Student
-                    </button>
-                </div>
+            <div class="info-item">
+                <label>Registration Date</label>
+                <span><?php echo date('F d, Y', strtotime($editStudent['created_at'])); ?></span>
+            </div>
+            <div class="info-item">
+                <label>Last Updated</label>
+                <span><?php echo date('F d, Y', strtotime($editStudent['updated_at'] ?? $editStudent['created_at'])); ?></span>
+            </div>
+        </div>
+        
+        <div class="quick-actions-section">
+            <h4 class="quick-actions-title">Quick Actions</h4>
+            <div class="action-buttons">
+                <button 
+                    class="btn btn-primary"
+                    data-action="generate-qr"
+                    data-lrn="<?php echo htmlspecialchars($editStudent['lrn']); ?>"
+                    data-name="<?php echo htmlspecialchars($editStudent['first_name'] . ' ' . $editStudent['last_name']); ?>">
+                    <i class="fas fa-qrcode"></i>
+                    <span>Generate QR Code</span>
+                </button>
+                <a href="attendance_reports.php?lrn=<?php echo urlencode($editStudent['lrn']); ?>" 
+                   class="btn btn-success" target="_blank">
+                    <i class="fas fa-chart-line"></i>
+                    <span>View Attendance</span>
+                </a>
+                <button class="btn btn-danger" data-action="show-delete-modal">
+                    <i class="fas fa-trash"></i>
+                    <span>Delete Student</span>
+                </button>
             </div>
         </div>
     </div>
 
     <!-- QR Code Modal -->
-    <div id="qr-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">
-                    <i class="fas fa-qrcode"></i> Student QR Code
-                </h3>
-                <button class="close" onclick="closeQRModal()">&times;</button>
-            </div>
-            <div class="modal-body centered-modal-body">
-                <h4 id="qr-student-name"></h4>
-                <div id="qr-code-container" class="qr-container"></div>
-                <p>Student can scan this QR code to mark attendance.</p>
-                <div class="modal-actions">
-                    <button onclick="printQR()" class="btn btn-primary">
-                        <i class="fas fa-print"></i> Print QR Code
+    <div id="qr-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">
+                        <i class="fas fa-qrcode"></i>
+                        Student QR Code
+                    </h3>
+                    <button class="modal-close" data-action="close-modal" data-modal="qr-modal" aria-label="Close modal">
+                        <i class="fas fa-times"></i>
                     </button>
-                    <button onclick="closeQRModal()" class="btn btn-secondary">
-                        <i class="fas fa-times"></i> Close
-                    </button>
+                </div>
+                <div class="modal-body" style="text-align: center;">
+                    <h4 id="qr-student-name" style="margin-bottom: var(--space-4); color: var(--gray-900);"></h4>
+                    <div id="qr-code-container" style="display: inline-block; padding: var(--space-4); background: white; border-radius: var(--radius-lg); margin-bottom: var(--space-4);"></div>
+                    <p style="color: var(--gray-600); margin-bottom: var(--space-5);">Student can scan this QR code to mark attendance.</p>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary" data-action="print-qr-manage">
+                            <i class="fas fa-print"></i>
+                            <span>Print QR Code</span>
+                        </button>
+                        <button class="btn btn-secondary" data-action="close-modal" data-modal="qr-modal">
+                            <i class="fas fa-times"></i>
+                            <span>Close</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <div id="delete-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-body delete-modal-content">
-                <div class="warning-icon">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <h3>Delete Student</h3>
-                <p>
-                    Are you sure you want to delete <strong><?php echo sanitizeOutput($editStudent['first_name'] . ' ' . $editStudent['last_name']); ?></strong>?
-                    <br><br>
-                    <span style="color: #dc3545; font-weight: 500;">
-                        This action cannot be undone and will also delete all attendance records for this student.
-                    </span>
-                </p>
-                <div class="delete-modal-buttons">
-                    <form method="POST" action="../api/delete_student.php" style="display: inline;">
-                        <input type="hidden" name="student_id" value="<?php echo $editStudent['id']; ?>">
-                        <button type="submit" class="btn-confirm-delete">
-                            <i class="fas fa-trash"></i> Yes, Delete Student
+    <div id="delete-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-content">
+                <div class="modal-body" style="text-align: center; padding: var(--space-8);">
+                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.1)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-5);">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 32px; color: var(--red-500);"></i>
+                    </div>
+                    <h3 style="font-size: var(--text-2xl); font-weight: 700; color: var(--gray-900); margin-bottom: var(--space-3);">Delete Student</h3>
+                    <p style="color: var(--gray-600); margin-bottom: var(--space-2);">
+                        Are you sure you want to delete <strong><?php echo sanitizeOutput($editStudent['first_name'] . ' ' . $editStudent['last_name']); ?></strong>?
+                    </p>
+                    <p style="color: var(--red-600); font-weight: 600; font-size: var(--text-sm); margin-bottom: var(--space-6);">
+                        ⚠️ This action cannot be undone and will delete all attendance records.
+                    </p>
+                    <div class="modal-actions" style="gap: var(--space-3);">
+                        <form method="POST" action="../api/delete_student.php" style="display: inline-block;">
+                            <input type="hidden" name="student_id" value="<?php echo $editStudent['id']; ?>">
+                            <button type="submit" class="btn btn-danger" style="min-width: 160px;">
+                                <i class="fas fa-trash"></i>
+                                <span>Yes, Delete</span>
+                            </button>
+                        </form>
+                        <button class="btn btn-secondary" data-action="close-modal" data-modal="delete-modal" style="min-width: 160px;">
+                            <i class="fas fa-times"></i>
+                            <span>Cancel</span>
                         </button>
-                    </form>
-                    <button onclick="closeDeleteModal()" class="btn-cancel">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+<style>
+    /* Modern Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--space-4);
+        animation: fadeIn 0.2s ease;
+    }
+
+    .modal-container {
+        width: 100%;
+        max-width: 500px;
+        animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: var(--radius-2xl);
+        box-shadow: var(--shadow-xl);
+        overflow: hidden;
+    }
+
+    .modal-header {
+        padding: var(--space-5);
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--gray-50);
+    }
+
+    .modal-title {
+        font-size: var(--text-xl);
+        font-weight: 700;
+        color: var(--gray-900);
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+    }
+
+    .modal-title i {
+        color: var(--primary-600);
+    }
+
+    .modal-close {
+        width: 36px;
+        height: 36px;
+        border-radius: var(--radius-lg);
+        border: none;
+        background: transparent;
+        color: var(--gray-500);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+    .modal-close:hover {
+        background: var(--gray-200);
+        color: var(--gray-700);
+    }
+
+    .modal-body {
+        padding: var(--space-6);
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: var(--space-3);
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes scaleIn {
+        from {
+            opacity: 0;
+            transform: scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
 <?php endif; ?>
 
 <!-- Include QR Code Library -->
+<!-- QR Code Library -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-<!-- Include View Students JavaScript -->
-<script src="../js/view_students.js"></script>
+
+<!-- Mobile-First Responsive CSS -->
+<link rel="stylesheet" href="../css/admin-students-mobile.css">
+
+<!-- External JavaScript - All functionality moved to external file -->
+<script src="../js/admin-students.js"></script>
 
 <script>
-// Additional JavaScript for manage students page
-function confirmDelete() {
-    document.getElementById('delete-modal').style.display = 'block';
-}
-
-function closeDeleteModal() {
-    document.getElementById('delete-modal').style.display = 'none';
-}
-
-// Form validation
+// Auto-format section name to uppercase
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('.student-form');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            const lrn = document.getElementById('lrn').value;
-            if (!/^\d{11,13}$/.test(lrn)) {
-                e.preventDefault();
-                alert('LRN must be 11-13 digits only.');
-                document.getElementById('lrn').focus();
-                return false;
-            }
+    const sectionInput = document.getElementById('section');
+    if (sectionInput) {
+        sectionInput.addEventListener('input', function() {
+            // Convert to uppercase for consistency
+            this.value = this.value.toUpperCase();
         });
     }
     
-    // Auto-format LRN input
-    const lrnInput = document.getElementById('lrn');
-    if (lrnInput) {
-        lrnInput.addEventListener('input', function() {
-            this.value = this.value.replace(/\D/g, ''); // Remove non-digits
+    // Add visual feedback for class selection
+    const classSelect = document.getElementById('class');
+    if (classSelect) {
+        classSelect.addEventListener('change', function() {
+            if (this.value) {
+                this.style.borderColor = '#10b981';
+                setTimeout(() => {
+                    this.style.borderColor = '';
+                }, 1000);
+            }
         });
     }
 });
 </script>
 
-<?php include 'includes/footer.php'; ?>
+<?php include 'includes/footer_modern.php'; ?>
