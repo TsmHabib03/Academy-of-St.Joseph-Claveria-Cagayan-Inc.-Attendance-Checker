@@ -273,6 +273,7 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
                 setLoadingState(true);
 
                 try {
+                    console.log('Sending request to API...');
                     const response = await fetch('../api/request_password_reset.php', {
                         method: 'POST',
                         headers: {
@@ -281,9 +282,24 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
                         body: JSON.stringify({ email: email })
                     });
 
-                    const data = await response.json();
+                    console.log('Response status:', response.status);
+                    console.log('Response ok:', response.ok);
+
+                    // Try to get response text first
+                    const responseText = await response.text();
+                    console.log('Response text:', responseText);
 
                     setLoadingState(false);
+
+                    // Try to parse as JSON
+                    let data;
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        showError('Server error: Invalid response format. Response: ' + responseText.substring(0, 100));
+                        return;
+                    }
 
                     if (data.success) {
                         showSuccess();
@@ -292,8 +308,8 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
                     }
                 } catch (error) {
                     setLoadingState(false);
-                    console.error('Error:', error);
-                    showError('Network error. Please check your connection and try again.');
+                    console.error('Fetch error:', error);
+                    showError('Network error: ' + error.message + '. Please check browser console (F12) for details.');
                 }
             });
 

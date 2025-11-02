@@ -4,24 +4,41 @@
  * Generates a secure token and sends password reset email
  */
 
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1); // Show errors for debugging
+ini_set('log_errors', 1);
+
+// Catch fatal errors
+register_shutdown_function(function() {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false,
+            'message' => 'Fatal error: ' . $error['message'] . ' in ' . $error['file'] . ' on line ' . $error['line']
+        ]);
+    }
+});
+
 header('Content-Type: application/json');
 
 // Start session
 session_start();
 
-// Include database configuration
-require_once '../config/db_config.php';
-
-// Include email configuration
-$emailConfig = require_once '../config/email_config.php';
-
-// Include PHPMailer
+// Include PHPMailer first
 require_once '../libs/PHPMailer/Exception.php';
 require_once '../libs/PHPMailer/PHPMailer.php';
 require_once '../libs/PHPMailer/SMTP.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+
+// Include database configuration
+require_once '../config/db_config.php';
+
+// Include email configuration
+$emailConfig = require_once '../config/email_config.php';
 
 // Get JSON input
 $input = json_decode(file_get_contents('php://input'), true);
@@ -48,7 +65,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
 try {
     // Check if admin exists with this email
-    $stmt = $pdo->prepare("SELECT id, username, email FROM admins WHERE email = :email LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, username, email FROM admin_users WHERE email = :email LIMIT 1");
     $stmt->execute(['email' => $email]);
     $admin = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -66,7 +83,7 @@ try {
         
         // Store hashed token and expiration in database
         $stmt = $pdo->prepare("
-            UPDATE admins 
+            UPDATE admin_users 
             SET reset_token = :token, 
                 reset_token_expires_at = :expires_at 
             WHERE id = :id

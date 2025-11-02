@@ -74,7 +74,7 @@ try {
     // Verify token is valid and not expired
     $stmt = $pdo->prepare("
         SELECT id, username, email 
-        FROM admins 
+        FROM admin_users 
         WHERE reset_token = :token 
         AND reset_token_expires_at > NOW()
         LIMIT 1
@@ -97,7 +97,7 @@ try {
     
     // Update password and clear reset token
     $stmt = $pdo->prepare("
-        UPDATE admins 
+        UPDATE admin_users 
         SET password = :password,
             reset_token = NULL,
             reset_token_expires_at = NULL

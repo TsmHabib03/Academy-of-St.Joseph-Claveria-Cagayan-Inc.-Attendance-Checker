@@ -34,38 +34,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error_message = 'Please enter both username and password.';
             $login_attempts++;
         } else {
-            // TODO: Replace with actual database verification
-            // For now, using default credentials (CHANGE IN PRODUCTION!)
-            if ($username === 'admin' && $password === 'admin123') {
-                // Successful login
-                $_SESSION['admin_logged_in'] = true;
-                $_SESSION['admin_username'] = $username;
-                $_SESSION['login_attempts'] = 0;
-                $_SESSION['lockout_time'] = 0;
-
-                if ($remember) {
-                    // Set cookie for 30 days
-                    setcookie('remember_admin', base64_encode($username), time() + (30 * 24 * 60 * 60), '/');
+            // Database authentication
+            try {
+                // First check which columns exist
+                $checkColumns = $pdo->query("SHOW COLUMNS FROM admin_users LIKE 'is_active'")->rowCount();
+                $hasIsActive = $checkColumns > 0;
+                
+                $checkLastLogin = $pdo->query("SHOW COLUMNS FROM admin_users LIKE 'last_login'")->rowCount();
+                $hasLastLogin = $checkLastLogin > 0;
+                
+                // Build query based on available columns
+                $selectFields = "id, username, password, email";
+                if ($hasIsActive) {
+                    $selectFields .= ", is_active";
                 }
+                
+                $stmt = $pdo->prepare("
+                    SELECT $selectFields
+                    FROM admin_users 
+                    WHERE username = :username OR email = :email
+                    LIMIT 1
+                ");
+                $stmt->execute(['username' => $username, 'email' => $username]);
+                $admin = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                // Return JSON for AJAX
-                if (isset($_POST['ajax'])) {
-                    header('Content-Type: application/json');
-                    echo json_encode(['success' => true, 'redirect' => 'dashboard.php']);
-                    exit();
+                // Check if account is active (if column exists)
+                $isActive = !$hasIsActive || ($admin && (!isset($admin['is_active']) || $admin['is_active']));
+
+                if ($admin && $isActive) {
+                    // Verify password (supports both MD5 legacy and bcrypt)
+                    $passwordValid = false;
+                    
+                    // Check if it's MD5 hash (32 characters)
+                    if (strlen($admin['password']) === 32) {
+                        // Legacy MD5 authentication
+                        $passwordValid = (md5($password) === $admin['password']);
+                    } else {
+                        // Modern bcrypt authentication
+                        $passwordValid = password_verify($password, $admin['password']);
+                    }
+
+                    if ($passwordValid) {
+                        // Successful login
+                        $_SESSION['admin_logged_in'] = true;
+                        $_SESSION['admin_id'] = $admin['id'];
+                        $_SESSION['admin_username'] = $admin['username'];
+                        $_SESSION['admin_email'] = $admin['email'] ?? '';
+                        $_SESSION['login_attempts'] = 0;
+                        $_SESSION['lockout_time'] = 0;
+
+                        // Update last login if column exists
+                        if ($hasLastLogin) {
+                            try {
+                                $updateStmt = $pdo->prepare("UPDATE admin_users SET last_login = NOW() WHERE id = :id");
+                                $updateStmt->execute(['id' => $admin['id']]);
+                            } catch (PDOException $e) {
+                                // Ignore last_login update errors
+                            }
+                        }
+
+                        if ($remember) {
+                            // Set cookie for 30 days
+                            setcookie('remember_admin', base64_encode($admin['username']), time() + (30 * 24 * 60 * 60), '/');
+                        }
+
+                        // Return JSON for AJAX
+                        if (isset($_POST['ajax'])) {
+                            header('Content-Type: application/json');
+                            echo json_encode(['success' => true, 'redirect' => 'dashboard.php']);
+                            exit();
+                        }
+
+                        header('Location: dashboard.php');
+                        exit();
+                    } else {
+                        $error_message = 'Invalid username or password. Please try again.';
+                        $login_attempts++;
+                    }
+                } else {
+                    $error_message = ($admin && !$isActive) ? 'Your account has been deactivated. Contact administrator.' : 'Invalid username or password. Please try again.';
+                    $login_attempts++;
                 }
-
-                header('Location: dashboard.php');
-                exit();
-            } else {
-                $error_message = 'Invalid username or password. Please try again.';
-                $login_attempts++;
 
                 // Lock account after 5 failed attempts
                 if ($login_attempts >= 5) {
                     $_SESSION['lockout_time'] = time() + (15 * 60); // 15 minutes
                     $error_message = 'Too many failed login attempts. Account locked for 15 minutes.';
                 }
+
+            } catch (PDOException $e) {
+                error_log("Login error: " . $e->getMessage());
+                $error_message = 'Database error: ' . $e->getMessage();
             }
         }
 

@@ -777,9 +777,8 @@
                 <div class="footer-section">
                     <h3>Contact</h3>
                     <ul class="footer-links">
-                        <li><i class="fas fa-envelope"></i> info@attendease.edu</li>
-                        <li><i class="fas fa-phone"></i> +63 123 456 7890</li>
-                        <li><i class="fas fa-map-marker-alt"></i> Your School Address</li>
+                        <li><i class="fas fa-envelope"></i> attendease08@gmail.com</li>
+                        <li><i class="fas fa-map-marker-alt"></i> 33 F. Balagtas st. Sta. Lucia, Novaliches, Quezon City 1117</li>
                     </ul>
                 </div>
             </div>

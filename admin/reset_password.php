@@ -22,7 +22,7 @@ if (!isset($_GET['token']) || empty(trim($_GET['token']))) {
         // Validate token
         $stmt = $pdo->prepare("
             SELECT id, username, email, reset_token_expires_at 
-            FROM admins 
+            FROM admin_users 
             WHERE reset_token = :token 
             AND reset_token_expires_at > NOW()
             LIMIT 1
