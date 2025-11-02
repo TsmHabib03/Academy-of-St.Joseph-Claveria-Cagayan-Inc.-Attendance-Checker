@@ -1,0 +1,4 @@
+# Protect config directory
+# Deny all access to this folder
+Order Deny,Allow
+Deny from all

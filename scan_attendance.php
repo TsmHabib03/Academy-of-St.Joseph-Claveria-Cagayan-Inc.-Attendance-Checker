@@ -819,6 +819,11 @@
         // Initialize Scanner with ULTRA-FAST Configuration
         async function initializeScanner() {
             try {
+                // Check if ZXing library is loaded
+                if (typeof ZXing === 'undefined') {
+                    throw new Error('ZXing library not loaded. Please check your internet connection.');
+                }
+                
                 // Check if browser supports getUserMedia
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     throw new Error('Camera not supported in this browser');
@@ -834,7 +839,6 @@
                 hints.set(ZXing.DecodeHintType.PURE_BARCODE, false);
                 
                 codeReader = new ZXing.BrowserQRCodeReader(hints);
-                console.log('✅ ULTRA-FAST Scanner initialized - Optimized for instant detection');
                 document.getElementById('scanner-loading').style.display = 'none';
                 
                 // Auto-start scanning on page load
@@ -842,7 +846,6 @@
                     startScanning();
                 }, 500);
             } catch (error) {
-                console.error('❌ Scanner initialization error:', error);
                 document.getElementById('scanner-loading').style.display = 'none';
                 
                 let errorMessage = 'Camera initialization failed';
@@ -893,31 +896,19 @@
                     await videoTrack.applyConstraints({
                         advanced: [{ focusMode: 'continuous' }]
                     });
-                    console.log('✅ Auto-focus enabled');
                 }
                 
                 await videoElement.play();
-                console.log('📹 ULTRA-FAST Camera started - 60fps with auto-focus');
 
                 // Use ZXing's built-in continuous decode (MUCH FASTER)
                 await codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
-                    if (result && isScanning && !isProcessing) {
-                        console.log('⚡ INSTANT QR detected:', result.text);
+                    if (result && result.text && isScanning && !isProcessing) {
                         handleScanResult(result.text);
                     }
-                    // Silently ignore NotFoundException (normal when no QR in view)
-                    if (err && !(err instanceof ZXing.NotFoundException)) {
-                        if (err.name !== 'NotFoundException') {
-                            console.warn('⚠️ Scan error:', err.name);
-                        }
-                    }
+                    // Suppress all scanning errors - these are normal during continuous scanning
                 });
 
-                console.log('✅ ULTRA-FAST scanner active - Instant detection enabled!');
-
             } catch (error) {
-                console.error('Scan error:', error);
-                
                 // Provide specific error messages based on error type
                 let errorMessage = 'Failed to start camera';
                 if (error.name === 'NotAllowedError') {
@@ -937,13 +928,12 @@
                         await videoElement.play();
                         
                         await codeReader.decodeFromVideoDevice(undefined, videoElement, (result, err) => {
-                            if (result && isScanning && !isProcessing) {
-                                console.log('⚡ QR detected:', result.text);
+                            if (result && result.text && isScanning && !isProcessing) {
                                 handleScanResult(result.text);
                             }
+                            // Suppress all scanning errors - these are normal during continuous scanning
                         });
                         
-                        console.log('✅ Fallback scanner active');
                         return; // Success with fallback
                     } catch (fallbackError) {
                         errorMessage = 'Failed to start camera even with basic settings.';
@@ -979,7 +969,6 @@
             
             document.getElementById('start-scan-btn').style.display = 'flex';
             document.getElementById('stop-scan-btn').style.display = 'none';
-            console.log('🛑 Scanner stopped');
         }
 
         // Handle Scan Result
@@ -988,7 +977,6 @@
         async function handleScanResult(qrCode) {
             // Prevent duplicate processing
             if (isProcessing) {
-                console.log('⚠️ Already processing a scan, ignoring...');
                 return;
             }
             
@@ -1000,22 +988,34 @@
             document.getElementById('scanner-loading').querySelector('p').textContent = 'Processing attendance...';
             
             try {
-                console.log('📤 Sending attendance for LRN:', qrCode);
+                // Extract LRN from QR code data
+                let lrn = qrCode.trim();
                 
+                // If QR contains multiple fields separated by |, take the first one
+                if (lrn.includes('|')) {
+                    lrn = lrn.split('|')[0].trim();
+                }
+                
+                // Send to API (no logging of sensitive data)
                 const response = await fetch('api/mark_attendance.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `lrn=${encodeURIComponent(qrCode)}`
+                    body: `lrn=${encodeURIComponent(lrn)}`
                 });
 
                 // Check if response is OK
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    throw new Error(`Server error: ${response.status}`);
                 }
 
-                const data = await response.json();
-                
-                console.log('📥 Response:', data);
+                // Parse JSON response
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    throw new Error('Invalid server response');
+                }
                 
                 // Hide loading
                 document.getElementById('scanner-loading').style.display = 'none';
@@ -1027,12 +1027,11 @@
                     showError(data.message || 'Failed to mark attendance');
                 }
             } catch (error) {
-                console.error('❌ Error:', error);
                 document.getElementById('scanner-loading').style.display = 'none';
                 document.getElementById('scanner-loading').querySelector('p').textContent = 'Initializing Camera...';
                 
                 let errorMessage = 'Network error. Please check your connection and try again.';
-                if (error.message.includes('HTTP')) {
+                if (error.message && error.message.includes('Server error')) {
                     errorMessage = 'Server error. Please contact the administrator.';
                 }
                 
@@ -1047,8 +1046,6 @@
 
         // Show Success
         function showSuccess(data) {
-            console.log('✅ Success! Attendance marked for:', data.student_name);
-            
             // Update success title based on action
             const titleElement = document.getElementById('success-title');
             if (data.status === 'time_in') {

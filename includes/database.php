@@ -20,7 +20,7 @@ class Database {
         // Try to get from environment variables (set by config file)
         // If not set, use default values
         $this->host = getenv('DB_HOST') ?: 'localhost';
-        $this->db_name = getenv('DB_NAME') ?: 'attendance_system_new';
+        $this->db_name = getenv('DB_NAME') ?: 'attendance_system';
         $this->username = getenv('DB_USER') ?: 'root';
         $this->password = getenv('DB_PASS') ?: 'muning0328';
     }

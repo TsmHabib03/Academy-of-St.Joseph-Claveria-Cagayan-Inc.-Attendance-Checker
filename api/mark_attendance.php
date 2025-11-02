@@ -314,19 +314,15 @@ try {
                 error_log("Email notification failed: " . $e->getMessage());
             }
             
-            // Return success response for Time In
+            // Return success response for Time In (minimal data for security)
             ob_end_clean();
             echo json_encode([
                 'success' => true,
                 'status' => 'time_in',
                 'message' => 'Time In recorded successfully!',
                 'student_name' => $student['first_name'] . ' ' . $student['last_name'],
-                'lrn' => $lrn,
-                'section' => $student['class'],
                 'time_in' => date('h:i A', strtotime($current_time)),
-                'date' => date('F j, Y', strtotime($today)),
-                'email_sent' => $emailSent,
-                'next_action' => 'Scan again to mark Time Out'
+                'date' => date('F j, Y', strtotime($today))
             ]);
             
         } elseif ($existing_record['time_in'] !== null && $existing_record['time_out'] === null) {
@@ -372,21 +368,16 @@ try {
             $minutes = floor(($duration_seconds % 3600) / 60);
             $duration = sprintf('%d hours %d minutes', $hours, $minutes);
             
-            // Return success response for Time Out
+            // Return success response for Time Out (minimal data for security)
             ob_end_clean();
             echo json_encode([
                 'success' => true,
                 'status' => 'time_out',
                 'message' => 'Time Out recorded successfully!',
                 'student_name' => $student['first_name'] . ' ' . $student['last_name'],
-                'lrn' => $lrn,
-                'section' => $student['class'],
-                'time_in' => date('h:i A', strtotime($existing_record['time_in'])),
                 'time_out' => date('h:i A', strtotime($current_time)),
                 'duration' => $duration,
-                'date' => date('F j, Y', strtotime($today)),
-                'email_sent' => $emailSent,
-                'next_action' => 'Attendance complete for today'
+                'date' => date('F j, Y', strtotime($today))
             ]);
             
         } else {
