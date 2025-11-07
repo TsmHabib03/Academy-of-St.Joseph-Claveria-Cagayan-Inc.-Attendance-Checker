@@ -20,6 +20,50 @@
     <link rel="stylesheet" href="css/modern-design.css">
     
     <style>
+        /* ===== ASJ COLOR SYSTEM ===== */
+        :root {
+            /* ASJ Brand Colors */
+            --asj-green-50: #E8F5E9;
+            --asj-green-100: #C8E6C9;
+            --asj-green-400: #66BB6A;
+            --asj-green-500: #4CAF50;
+            --asj-green-600: #43A047;
+            --asj-green-700: #388E3C;
+            
+            --asj-gold-50: #FFF9E6;
+            --asj-gold-400: #FFD54F;
+            --asj-gold-500: #FFC107;
+            --asj-gold-600: #FFB300;
+            
+            /* Modern Neutrals */
+            --neutral-50: #FAFBFC;
+            --neutral-100: #F4F6F8;
+            --neutral-200: #E5E9ED;
+            --neutral-300: #D0D7DE;
+            --neutral-400: #8B96A5;
+            --neutral-500: #6E7C8C;
+            --neutral-600: #556575;
+            --neutral-700: #3E4C59;
+            --neutral-900: #1F2937;
+            
+            /* Semantic Colors */
+            --success-light: #D1FAE5;
+            --success: #10B981;
+            --success-dark: #059669;
+            
+            --error-light: #FEE2E2;
+            --error: #EF4444;
+            --error-dark: #DC2626;
+            
+            --warning-light: #FEF3C7;
+            --warning: #F59E0B;
+            --warning-dark: #D97706;
+            
+            --info-light: #DBEAFE;
+            --info: #3B82F6;
+            --info-dark: #2563EB;
+        }
+
         /* Full-Screen Scanner Specific Styles */
         body {
             margin: 0;
@@ -32,52 +76,82 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
-            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-700) 100%);
         }
 
         /* Top Bar */
         .scanner-topbar {
-            background: rgba(255, 255, 255, 0.95);
+            background: linear-gradient(135deg, var(--asj-green-600), var(--asj-green-700));
             backdrop-filter: blur(10px);
-            padding: var(--space-4);
+            padding: var(--space-3) var(--space-4);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 16px rgba(76, 175, 80, 0.3);
             z-index: 100;
         }
 
         .scanner-logo {
             display: flex;
             align-items: center;
-            gap: var(--space-2);
-            font-size: var(--text-lg);
-            font-weight: 700;
-            font-family: 'Poppins', sans-serif;
-            color: var(--primary-600);
+            gap: var(--space-3);
             text-decoration: none;
         }
 
-        .scanner-logo i {
-            font-size: var(--text-2xl);
+        .scanner-logo-img {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-lg);
+            background: white;
+            padding: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            object-fit: contain;
+        }
+
+        .scanner-logo-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .scanner-logo-title {
+            font-size: var(--text-base);
+            font-weight: 700;
+            font-family: 'Poppins', sans-serif;
+            color: white;
+            line-height: 1.2;
+        }
+
+        .scanner-logo-subtitle {
+            font-size: var(--text-xs);
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1;
         }
         
         .scanner-menu-btn {
             width: 44px;
             height: 44px;
             border-radius: var(--radius-full);
-            border: none;
-            background: var(--gray-100);
-            color: var(--gray-700);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all var(--transition-base);
+            backdrop-filter: blur(10px);
         }
 
         .scanner-menu-btn:hover {
-            background: var(--gray-200);
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        .scanner-menu-btn:active {
+            transform: scale(0.95);
         }
 
         /* Scanner Container */
@@ -246,29 +320,33 @@
         }
 
         .scanner-control-btn-primary {
-            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            background: linear-gradient(135deg, var(--asj-green-500), var(--asj-green-600));
             color: white;
-            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
         }
 
         .scanner-control-btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(14, 165, 233, 0.5);
+            box-shadow: 0 6px 16px rgba(76, 175, 80, 0.5);
+        }
+
+        .scanner-control-btn-primary:active {
+            transform: translateY(0);
         }
 
         .scanner-control-btn-secondary {
             background: white;
-            color: var(--primary-600);
-            border: 2px solid var(--gray-300);
+            color: var(--asj-green-600);
+            border: 2px solid var(--neutral-300);
         }
 
         .scanner-control-btn-secondary:hover {
-            background: var(--gray-50);
-            border-color: var(--primary-500);
+            background: var(--asj-green-50);
+            border-color: var(--asj-green-500);
         }
 
         .scanner-control-btn-danger {
-            background: linear-gradient(135deg, var(--error-500), var(--error-600));
+            background: linear-gradient(135deg, var(--error), var(--error-dark));
             color: white;
             box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
         }
@@ -296,11 +374,13 @@
         }
 
         .result-overlay-success {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95));
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.97), rgba(56, 142, 60, 0.97));
+            backdrop-filter: blur(10px);
         }
 
         .result-overlay-error {
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95));
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.97), rgba(220, 38, 38, 0.97));
+            backdrop-filter: blur(10px);
         }
 
         .result-icon {
@@ -424,12 +504,12 @@
         }
 
         .manual-help-text {
-            background: var(--primary-50);
-            border-left: 4px solid var(--primary-500);
+            background: var(--asj-green-50);
+            border-left: 4px solid var(--asj-green-500);
             padding: var(--space-4);
             border-radius: var(--radius-lg);
             margin-bottom: var(--space-6);
-            color: var(--primary-700);
+            color: var(--asj-green-700);
             font-size: var(--text-sm);
         }
 
@@ -512,8 +592,38 @@
 
         .mobile-menu-header {
             padding: var(--space-6);
-            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            background: linear-gradient(135deg, var(--asj-green-500), var(--asj-green-700));
             color: white;
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .mobile-menu-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-lg);
+            background: white;
+            padding: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            object-fit: contain;
+        }
+
+        .mobile-menu-title {
+            flex: 1;
+        }
+
+        .mobile-menu-title h3 {
+            font-size: var(--text-lg);
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: white;
+        }
+
+        .mobile-menu-title p {
+            font-size: var(--text-xs);
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
         }
 
         .mobile-menu-nav {
@@ -534,14 +644,15 @@
         }
 
         .mobile-menu-item:hover {
-            background: var(--gray-50);
-            color: var(--primary-600);
+            background: var(--asj-green-50);
+            color: var(--asj-green-600);
         }
 
         .mobile-menu-item.active {
-            background: var(--primary-50);
-            color: var(--primary-600);
+            background: var(--asj-green-100);
+            color: var(--asj-green-700);
             font-weight: 600;
+            border-left: 4px solid var(--asj-green-600);
         }
 
         .mobile-menu-item i {
@@ -574,23 +685,30 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            background: linear-gradient(135deg, var(--asj-green-500), var(--asj-green-600));
             color: white;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4);
         }
 
         .form-control {
             width: 100%;
             padding: var(--space-4);
-            border: 2px solid var(--gray-300);
+            border: 2px solid var(--neutral-300);
             border-radius: var(--radius-lg);
             font-size: var(--text-base);
             transition: all var(--transition-base);
+            font-family: 'Poppins', sans-serif;
         }
 
         .form-control:focus {
             outline: none;
-            border-color: var(--primary-500);
-            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+            border-color: var(--asj-green-500);
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
         }
 
         .form-group {
@@ -605,7 +723,7 @@
             color: var(--gray-700);
             font-size: var(--text-sm);
         }        .invalid-feedback {
-            color: var(--error-500);
+            color: var(--error);
             font-size: var(--text-sm);
             margin-top: var(--space-2);
             display: none;
@@ -613,6 +731,20 @@
 
         .invalid-feedback.active {
             display: block;
+        }
+
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-full);
+            font-size: var(--text-xs);
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            backdrop-filter: blur(10px);
         }
 
         /* Desktop adjustments */
@@ -652,8 +784,11 @@
         <!-- Top Bar -->
         <div class="scanner-topbar">
             <a href="index.php" class="scanner-logo">
-                <i class="fas fa-qrcode"></i>
-                <span>Attendance</span>
+                <img src="assets/asj-logo.png" alt="ASJ Logo" class="scanner-logo-img" onerror="this.style.display='none'">
+                <div class="scanner-logo-text">
+                    <span class="scanner-logo-title">ASJ Attendance</span>
+                    <span class="scanner-logo-subtitle">QR Scanner</span>
+                </div>
             </a>
             <button class="scanner-menu-btn" onclick="toggleMenu()">
                 <i class="fas fa-bars"></i>
@@ -778,19 +913,24 @@
     <div class="mobile-menu-backdrop" id="menu-backdrop" onclick="toggleMenu()"></div>
     <div class="mobile-menu" id="mobile-menu">
         <div class="mobile-menu-header">
-            <h3 style="font-size: var(--text-xl); color: var(--gray-900);">
-                <i class="fas fa-bars"></i> Menu
-            </h3>
+            <img src="assets/asj-logo.png" alt="ASJ Logo" class="mobile-menu-logo" onerror="this.style.display='none'">
+            <div class="mobile-menu-title">
+                <h3>Academy of St. Joseph</h3>
+                <p>Attendance System</p>
+            </div>
         </div>
         <nav class="mobile-menu-nav">
             <a href="index.php" class="mobile-menu-item">
-                <i class="fas fa-home"></i> Home
+                <i class="fas fa-home"></i>
+                <span>Home</span>
             </a>
             <a href="scan_attendance.php" class="mobile-menu-item active">
-                <i class="fas fa-qrcode"></i> Scan Attendance
+                <i class="fas fa-qrcode"></i>
+                <span>Scan Attendance</span>
             </a>
             <a href="admin/login.php" class="mobile-menu-item">
-                <i class="fas fa-shield-alt"></i> Admin Portal
+                <i class="fas fa-shield-halved"></i>
+                <span>Admin Portal</span>
             </a>
         </nav>
     </div>

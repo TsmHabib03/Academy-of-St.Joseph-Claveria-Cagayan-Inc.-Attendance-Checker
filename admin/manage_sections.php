@@ -6,8 +6,8 @@ $currentAdmin = getCurrentAdmin();
 $pageTitle = 'Manage Sections';
 $pageIcon = 'layer-group';
 
-// Add manage-sections CSS - New Modern Design
-$additionalCSS = ['../css/manage-sections-modern.css'];
+// Add manage-sections CSS - New Modern Design with cache buster
+$additionalCSS = ['../css/manage-sections-modern.css?v=' . time()];
 
 // Initialize response array for AJAX
 $response = ['success' => false, 'message' => ''];
@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $adviser = trim($_POST['adviser'] ?? '');
             $school_year = trim($_POST['school_year'] ?? '');
             $status = $_POST['status'] ?? 'active';
+            $is_active = ($status === 'active') ? 1 : 0;
             
             if (empty($section_name)) {
                 throw new Exception('Section name is required');
@@ -71,13 +72,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $pdo->beginTransaction();
             
             // Update section
-            $stmt = $pdo->prepare("UPDATE sections SET section_name = ?, grade_level = ?, adviser = ?, school_year = ?, status = ? WHERE id = ?");
-            $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $status, $id]);
+            $stmt = $pdo->prepare("UPDATE sections SET section_name = ?, grade_level = ?, adviser = ?, school_year = ?, is_active = ? WHERE id = ?");
+            $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $is_active, $id]);
             
             // Update students' section field if section name changed
             if ($old_section['section_name'] !== $section_name) {
-                $update_students = $pdo->prepare("UPDATE students SET section = ? WHERE section = ?");
-                $update_students->execute([$section_name, $old_section['section_name']]);
+                $update_students = $pdo->prepare("UPDATE students SET section = ?, class = ? WHERE section = ? OR class = ?");
+                $update_students->execute([$section_name, $section_name, $old_section['section_name'], $old_section['section_name']]);
             }
             
             $pdo->commit();
@@ -99,8 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                 throw new Exception('Section not found');
             }
             
-            $count_stmt = $pdo->prepare("SELECT COUNT(*) as count FROM students WHERE section = ?");
-            $count_stmt->execute([$section['section_name']]);
+            $count_stmt = $pdo->prepare("SELECT COUNT(*) as count FROM students WHERE section = ? OR class = ?");
+            $count_stmt->execute([$section['section_name'], $section['section_name']]);
             $count = $count_stmt->fetch()['count'];
             
             if ($count > 0) {
@@ -129,7 +130,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
 // Get all sections with student count
 try {
     $query = "SELECT s.*, 
-              (SELECT COUNT(*) FROM students st WHERE st.section = s.section_name) as student_count
+              (SELECT COUNT(*) FROM students st WHERE st.section = s.section_name OR st.class = s.section_name) as student_count,
+              CASE WHEN s.is_active = 1 THEN 'active' ELSE 'inactive' END as status
               FROM sections s
               ORDER BY s.section_name";
     $stmt = $pdo->query($query);
@@ -138,6 +140,7 @@ try {
     // Ensure all sections have required keys to prevent undefined array key warnings
     foreach ($sections as &$section) {
         $section['status'] = $section['status'] ?? 'active';
+        $section['is_active'] = $section['is_active'] ?? 1;
         $section['adviser'] = $section['adviser'] ?? '';
         $section['school_year'] = $section['school_year'] ?? '';
         $section['grade_level'] = $section['grade_level'] ?? '';

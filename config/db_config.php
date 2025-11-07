@@ -7,13 +7,12 @@
  * This will be used by includes/database.php for all connections.
  */
 
-// Your database name - CHANGE THIS to your actual database
-define('DB_NAME', 'attendance_system');
-
-// Database credentials (usually these stay the same)
+// Database configuration
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', 'muning0328');
+define('DB_NAME', 'asj_attendease_db'); // ← NEW DATABASE NAME
+define('DB_CHARSET', 'utf8mb4');
 
 // Set timezone
 date_default_timezone_set('Asia/Manila');
@@ -27,7 +26,7 @@ putenv('DB_PASS=' . DB_PASS);
 // Create PDO connection for APIs that need it
 try {
     $pdo = new PDO(
-        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
+        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET,
         DB_USER,
         DB_PASS,
         [

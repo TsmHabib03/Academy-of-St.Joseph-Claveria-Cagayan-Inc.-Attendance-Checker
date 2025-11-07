@@ -98,31 +98,49 @@ try {
     
     // Auto-create section if it doesn't exist
     if (!empty($class)) {
-        $checkSectionStmt = $db->prepare("SELECT id FROM sections WHERE section_name = :section_name");
-        $checkSectionStmt->bindParam(':section_name', $class, PDO::PARAM_STR);
-        $checkSectionStmt->execute();
-        
-        if ($checkSectionStmt->rowCount() === 0) {
-            // Extract grade level from section name (e.g., "12-BARBERRA" -> "12")
-            $gradeLevel = '';
-            if (preg_match('/^(\d{1,2})[-_\s]/', $class, $matches)) {
-                $gradeLevel = $matches[1];
+        try {
+            // Check if section already exists (case-insensitive)
+            $checkSectionStmt = $db->prepare("SELECT id, section_name FROM sections WHERE LOWER(section_name) = LOWER(:section_name)");
+            $checkSectionStmt->bindParam(':section_name', $class, PDO::PARAM_STR);
+            $checkSectionStmt->execute();
+            
+            if ($checkSectionStmt->rowCount() === 0) {
+                // Extract grade level from section name (e.g., "12-BARBERRA" -> "12")
+                $gradeLevel = '';
+                if (preg_match('/^(\d{1,2})[-_\s]/', $class, $matches)) {
+                    $gradeLevel = $matches[1];
+                }
+                
+                // Get current school year
+                $currentYear = date('Y');
+                $nextYear = $currentYear + 1;
+                $schoolYear = $currentYear . '-' . $nextYear;
+                
+                // Insert new section with error handling
+                try {
+                    $insertSectionStmt = $db->prepare("
+                        INSERT INTO sections (section_name, grade_level, school_year, is_active, created_at) 
+                        VALUES (:section_name, :grade_level, :school_year, 1, NOW())
+                    ");
+                    $insertSectionStmt->bindParam(':section_name', $class, PDO::PARAM_STR);
+                    $insertSectionStmt->bindParam(':grade_level', $gradeLevel, PDO::PARAM_STR);
+                    $insertSectionStmt->bindParam(':school_year', $schoolYear, PDO::PARAM_STR);
+                    
+                    if ($insertSectionStmt->execute()) {
+                        error_log("Section created successfully in API: $class (Grade: $gradeLevel)");
+                    } else {
+                        error_log("Failed to create section in API: $class");
+                    }
+                } catch (PDOException $sectionError) {
+                    // Log but don't fail - section might already exist from concurrent request
+                    error_log("Section creation error (likely duplicate): " . $sectionError->getMessage());
+                }
+            } else {
+                error_log("Section already exists in API: $class");
             }
-            
-            // Get current school year
-            $currentYear = date('Y');
-            $nextYear = $currentYear + 1;
-            $schoolYear = $currentYear . '-' . $nextYear;
-            
-            // Insert new section
-            $insertSectionStmt = $db->prepare("
-                INSERT INTO sections (section_name, grade_level, school_year, status, created_at) 
-                VALUES (:section_name, :grade_level, :school_year, 'active', NOW())
-            ");
-            $insertSectionStmt->bindParam(':section_name', $class, PDO::PARAM_STR);
-            $insertSectionStmt->bindParam(':grade_level', $gradeLevel, PDO::PARAM_STR);
-            $insertSectionStmt->bindParam(':school_year', $schoolYear, PDO::PARAM_STR);
-            $insertSectionStmt->execute();
+        } catch (Exception $sectionCheckError) {
+            error_log("Section check error in API: " . $sectionCheckError->getMessage());
+            // Continue - don't fail student registration if section check fails
         }
     }
     

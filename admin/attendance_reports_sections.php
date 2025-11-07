@@ -11,14 +11,58 @@ include 'includes/header_modern.php';
 ?>
 
 <style>
+    /* ===== ASJ COLOR SYSTEM ===== */
+    :root {
+        /* ASJ Brand Colors */
+        --asj-green-50: #E8F5E9;
+        --asj-green-100: #C8E6C9;
+        --asj-green-400: #66BB6A;
+        --asj-green-500: #4CAF50;
+        --asj-green-600: #43A047;
+        --asj-green-700: #388E3C;
+        
+        --asj-gold-50: #FFF9E6;
+        --asj-gold-400: #FFD54F;
+        --asj-gold-500: #FFC107;
+        --asj-gold-600: #FFB300;
+        
+        /* Modern Neutrals */
+        --neutral-50: #FAFBFC;
+        --neutral-100: #F4F6F8;
+        --neutral-200: #E5E9ED;
+        --neutral-300: #D0D7DE;
+        --neutral-400: #8B96A5;
+        --neutral-500: #6E7C8C;
+        --neutral-600: #556575;
+        --neutral-700: #3E4C59;
+        --neutral-900: #1F2937;
+        
+        /* Semantic Colors */
+        --success-light: #D1FAE5;
+        --success: #10B981;
+        --success-dark: #059669;
+        
+        --error-light: #FEE2E2;
+        --error: #EF4444;
+        --error-dark: #DC2626;
+        
+        --warning-light: #FEF3C7;
+        --warning: #F59E0B;
+        --warning-dark: #D97706;
+        
+        --info-light: #DBEAFE;
+        --info: #3B82F6;
+        --info-dark: #2563EB;
+    }
+
     /* ===== PAGE HEADER ENHANCED ===== */
     .page-header-enhanced {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-700) 100%);
         border-radius: var(--radius-2xl);
         padding: var(--space-8);
         margin-bottom: var(--space-6);
         color: white;
-        box-shadow: var(--shadow-xl);
+        box-shadow: 0 10px 40px -10px rgba(76, 175, 80, 0.4);
         position: relative;
         overflow: hidden;
     }
@@ -30,7 +74,7 @@ include 'includes/header_modern.php';
         right: -10%;
         width: 300px;
         height: 300px;
-        background: rgba(255, 255, 255, 0.1);
+        background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
         border-radius: 50%;
     }
 
@@ -72,7 +116,7 @@ include 'includes/header_modern.php';
     .filters-header {
         padding: var(--space-6);
         border-bottom: 1px solid var(--gray-200);
-        background: linear-gradient(to right, var(--primary-50), var(--primary-100));
+        background: linear-gradient(to right, var(--asj-green-50), var(--neutral-50));
     }
 
     .filters-header h2 {
@@ -86,7 +130,7 @@ include 'includes/header_modern.php';
     }
 
     .filters-header h2 i {
-        color: var(--primary-600);
+        color: var(--asj-green-600);
     }
 
     .filters-body {
@@ -145,19 +189,19 @@ include 'includes/header_modern.php';
     }
 
     .stat-card-modern.primary::before {
-        background: var(--primary-600);
+        background: var(--asj-green-500);
     }
 
     .stat-card-modern.success::before {
-        background: var(--success-600);
+        background: var(--success);
     }
 
     .stat-card-modern.warning::before {
-        background: var(--warning-600);
+        background: var(--warning);
     }
 
     .stat-card-modern.info::before {
-        background: var(--info-600);
+        background: var(--info);
     }
 
     .stat-card-content {
@@ -180,23 +224,27 @@ include 'includes/header_modern.php';
     }
 
     .stat-card-modern.primary .stat-icon-modern {
-        background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+        background: linear-gradient(135deg, var(--asj-green-500), var(--asj-green-600));
         color: white;
+        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
     }
 
     .stat-card-modern.success .stat-icon-modern {
-        background: linear-gradient(135deg, var(--success-500), var(--success-600));
+        background: linear-gradient(135deg, var(--success), var(--success-dark));
         color: white;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
     }
 
     .stat-card-modern.warning .stat-icon-modern {
-        background: linear-gradient(135deg, var(--warning-500), var(--warning-600));
+        background: linear-gradient(135deg, var(--warning), var(--warning-dark));
         color: white;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
     }
 
     .stat-card-modern.info .stat-icon-modern {
-        background: linear-gradient(135deg, var(--info-500), var(--info-600));
+        background: linear-gradient(135deg, var(--info), var(--info-dark));
         color: white;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
     }
 
     .stat-details {
@@ -270,7 +318,7 @@ include 'includes/header_modern.php';
     }
 
     .modern-table thead {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-700) 100%);
     }
 
     .modern-table th {
@@ -288,7 +336,7 @@ include 'includes/header_modern.php';
     }
 
     .modern-table tbody tr:hover {
-        background: var(--gray-50);
+        background: var(--asj-green-50);
     }
 
     .modern-table tbody tr:last-child {
@@ -317,13 +365,13 @@ include 'includes/header_modern.php';
     }
 
     .status-completed {
-        background: var(--success-100);
-        color: var(--success-700);
+        background: var(--success-light);
+        color: var(--success-dark);
     }
 
     .status-incomplete {
-        background: var(--warning-100);
-        color: var(--warning-700);
+        background: var(--warning-light);
+        color: var(--warning-dark);
     }
 
     .section-badge {
@@ -333,8 +381,8 @@ include 'includes/header_modern.php';
         border-radius: var(--radius-full);
         font-size: var(--text-xs);
         font-weight: var(--font-semibold);
-        background: var(--primary-100);
-        color: var(--primary-700);
+        background: var(--asj-green-100);
+        color: var(--asj-green-700);
     }
 
     /* ===== EMPTY STATE ===== */
@@ -345,7 +393,10 @@ include 'includes/header_modern.php';
 
     .empty-state i {
         font-size: 80px;
-        color: var(--gray-300);
+        background: linear-gradient(135deg, var(--asj-green-400), var(--asj-green-600));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
         margin-bottom: var(--space-4);
     }
 
@@ -384,15 +435,17 @@ include 'includes/header_modern.php';
     }
 
     .page-btn:hover:not(:disabled) {
-        background: var(--primary-600);
+        background: var(--asj-green-600);
         color: white;
-        border-color: var(--primary-600);
+        border-color: var(--asj-green-600);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(76, 175, 80, 0.2);
     }
 
     .page-btn.active {
-        background: var(--primary-600);
+        background: var(--asj-green-600);
         color: white;
-        border-color: var(--primary-600);
+        border-color: var(--asj-green-600);
     }
 
     .page-btn:disabled {

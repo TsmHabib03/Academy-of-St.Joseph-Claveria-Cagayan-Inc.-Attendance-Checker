@@ -5,37 +5,70 @@
  */
 
 /* ============================================
-   CSS VARIABLES - Design System
+   CSS VARIABLES - ASJ Design System
    ============================================ */
 :root {
-    /* Primary Colors - Purple Gradient */
-    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --primary-light: #8b9ff9;
-    --primary-dark: #5568d3;
+    /* ASJ Brand Colors */
+    --asj-green-50: #E8F5E9;
+    --asj-green-100: #C8E6C9;
+    --asj-green-400: #66BB6A;
+    --asj-green-500: #4CAF50;
+    --asj-green-600: #43A047;
+    --asj-green-700: #388E3C;
+    --asj-gold-50: #FFF9E6;
+    --asj-gold-400: #FFD54F;
+    --asj-gold-500: #FFC107;
+    --asj-gold-600: #FFB300;
     
-    /* Accent Colors */
-    --accent-purple: #667eea;
-    --accent-pink: #f093fb;
-    --accent-blue: #4facfe;
-    --accent-green: #43e97b;
-    --accent-orange: #fa709a;
+    /* Modern Neutrals */
+    --neutral-50: #FAFBFC;
+    --neutral-100: #F4F6F8;
+    --neutral-200: #E5E9ED;
+    --neutral-300: #D0D7DE;
+    --neutral-400: #8B96A5;
+    --neutral-500: #6E7C8C;
+    --neutral-600: #556575;
+    --neutral-700: #3E4C59;
+    --neutral-900: #1F2937;
+    
+    /* Semantic Colors */
+    --success-light: #D1FAE5;
+    --success: #10B981;
+    --success-dark: #059669;
+    --error-light: #FEE2E2;
+    --error: #EF4444;
+    --error-dark: #DC2626;
+    --warning-light: #FEF3C7;
+    --warning: #F59E0B;
+    --warning-dark: #D97706;
+    --info-light: #DBEAFE;
+    --info: #3B82F6;
+    --info-dark: #2563EB;
     
     /* Status Colors */
     --status-active: #10b981;
     --status-inactive: #ef4444;
     --status-pending: #f59e0b;
     
-    /* Neutral Colors */
+    /* Legacy compatibility */
+    --primary-50: #E8F5E9;
+    --primary-100: #C8E6C9;
+    --primary-400: #66BB6A;
+    --primary-500: #4CAF50;
+    --primary-600: #43A047;
+    --primary-700: #388E3C;
+    --accent-500: #FFC107;
+    --accent-600: #FFB300;
     --white: #ffffff;
-    --gray-50: #f9fafb;
-    --gray-100: #f3f4f6;
-    --gray-200: #e5e7eb;
-    --gray-300: #d1d5db;
-    --gray-400: #9ca3af;
-    --gray-500: #6b7280;
-    --gray-600: #4b5563;
-    --gray-700: #374151;
-    --gray-800: #1f2937;
+    --gray-50: #FAFBFC;
+    --gray-100: #F4F6F8;
+    --gray-200: #E5E9ED;
+    --gray-300: #D0D7DE;
+    --gray-400: #8B96A5;
+    --gray-500: #6E7C8C;
+    --gray-600: #556575;
+    --gray-700: #3E4C59;
+    --gray-800: #1F2937;
     --gray-900: #111827;
     
     /* Spacing */
@@ -72,11 +105,11 @@
    ============================================ */
 .page-header-enhanced {
     position: relative;
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-700) 100%);
     border-radius: var(--radius-2xl);
     margin-bottom: var(--spacing-xl);
     overflow: hidden;
-    box-shadow: var(--shadow-xl);
+    box-shadow: 0 10px 40px -10px rgba(76, 175, 80, 0.4);
 }
 
 .page-header-background {
@@ -91,7 +124,7 @@
 .header-gradient-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.95) 100%);
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
 }
 
 .header-pattern {
@@ -215,7 +248,7 @@
 
 .btn-header-primary {
     background: var(--white);
-    color: var(--accent-purple);
+    color: var(--asj-green-600);
 }
 
 .btn-header-primary:hover {
@@ -293,22 +326,22 @@
 }
 
 .stat-icon-purple {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-600) 100%);
     color: var(--white);
 }
 
 .stat-icon-pink {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(135deg, var(--asj-green-400) 0%, var(--asj-green-600) 100%);
     color: var(--white);
 }
 
 .stat-icon-blue {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    background: linear-gradient(135deg, var(--info) 0%, var(--info-dark) 100%);
     color: var(--white);
 }
 
 .stat-icon-green {
-    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    background: linear-gradient(135deg, var(--success) 0%, var(--success-dark) 100%);
     color: var(--white);
 }
 
@@ -377,19 +410,19 @@
 }
 
 .stat-progress-purple {
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(90deg, var(--asj-green-500) 0%, var(--asj-green-600) 100%);
 }
 
 .stat-progress-pink {
-    background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(90deg, var(--asj-green-400) 0%, var(--asj-green-600) 100%);
 }
 
 .stat-progress-blue {
-    background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+    background: linear-gradient(90deg, var(--info) 0%, var(--info-dark) 100%);
 }
 
 .stat-progress-green {
-    background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
+    background: linear-gradient(90deg, var(--success) 0%, var(--success-dark) 100%);
 }
 
 /* ============================================
@@ -418,7 +451,7 @@
 .card-icon-badge {
     width: 48px;
     height: 48px;
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-600) 100%);
     border-radius: var(--radius-lg);
     display: flex;
     align-items: center;
@@ -481,8 +514,8 @@
 
 .search-box-enhanced input:focus {
     outline: none;
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: var(--asj-green-500);
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
 }
 
 .search-clear {
@@ -524,7 +557,7 @@
 }
 
 .filter-btn:hover {
-    border-color: var(--accent-purple);
+    border-color: var(--asj-green-500);
     background: var(--gray-50);
 }
 
@@ -607,7 +640,7 @@
 }
 
 .modern-table-enhanced thead {
-    background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
+    background: linear-gradient(135deg, var(--asj-green-50) 0%, var(--neutral-50) 100%);
 }
 
 .modern-table-enhanced th {
@@ -629,7 +662,7 @@
 }
 
 .th-icon {
-    color: var(--accent-purple);
+    color: var(--asj-green-600);
 }
 
 .th-sortable {
@@ -676,8 +709,8 @@
 }
 
 .modern-table-enhanced tbody tr:hover {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.02) 0%, rgba(118, 75, 162, 0.02) 100%);
-    box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.1);
+    background: var(--asj-green-50);
+    box-shadow: inset 0 0 0 1px rgba(76, 175, 80, 0.1);
 }
 
 .modern-table-enhanced td {
@@ -713,7 +746,7 @@
 .section-icon {
     width: 36px;
     height: 36px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-600) 100%);
     border-radius: var(--radius-md);
     display: flex;
     align-items: center;
@@ -732,7 +765,7 @@
     align-items: center;
     gap: var(--spacing-xs);
     padding: 0.375rem 0.75rem;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    background: linear-gradient(135deg, var(--info) 0%, var(--info-dark) 100%);
     color: var(--white);
     border-radius: var(--radius-full);
     font-weight: 600;
@@ -748,7 +781,7 @@
 .adviser-avatar {
     width: 36px;
     height: 36px;
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(135deg, var(--asj-gold-400) 0%, var(--asj-gold-600) 100%);
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;
@@ -786,8 +819,8 @@
 }
 
 .badge-info {
-    background: rgba(79, 172, 254, 0.1);
-    color: #0284c7;
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--info);
 }
 
 .badge-text {
@@ -839,18 +872,18 @@
 }
 
 .btn-action-edit {
-    background: rgba(79, 172, 254, 0.1);
-    color: #0284c7;
+    background: rgba(76, 175, 80, 0.1);
+    color: var(--asj-green-600);
 }
 
 .btn-action-edit:hover {
-    background: rgba(79, 172, 254, 0.2);
+    background: rgba(76, 175, 80, 0.2);
     transform: scale(1.1);
 }
 
 .btn-action-delete {
     background: rgba(239, 68, 68, 0.1);
-    color: var(--status-inactive);
+    color: var(--error);
 }
 
 .btn-action-delete:hover {
@@ -964,7 +997,7 @@
 .empty-state-icon-modern {
     width: 80px;
     height: 80px;
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-600) 100%);
     border-radius: var(--radius-xl);
     display: flex;
     align-items: center;
@@ -1018,12 +1051,12 @@
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
-    color: var(--accent-purple);
+    color: var(--asj-green-600);
     transition: var(--transition-base);
 }
 
 .empty-feature:hover .feature-icon {
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-600) 100%);
     color: var(--white);
     transform: scale(1.1);
 }
@@ -1040,7 +1073,7 @@
     align-items: center;
     gap: var(--spacing-md);
     padding: 1rem 2rem;
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-600) 100%);
     color: var(--white);
     border: none;
     border-radius: var(--radius-xl);
@@ -1093,7 +1126,7 @@
 }
 
 .empty-state-help i {
-    color: var(--accent-orange);
+    color: var(--asj-gold-500);
     font-size: 1rem;
 }
 
@@ -1173,7 +1206,7 @@
 .modal-icon-wrapper {
     width: 56px;
     height: 56px;
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-600) 100%);
     border-radius: var(--radius-xl);
     display: flex;
     align-items: center;
@@ -1274,8 +1307,8 @@
 .form-input:focus,
 .form-select:focus {
     outline: none;
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: var(--asj-green-500);
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
 }
 
 .form-help {
@@ -1310,7 +1343,7 @@
 }
 
 .btn-primary {
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-600) 100%);
     color: var(--white);
     box-shadow: var(--shadow-md);
 }
@@ -1330,7 +1363,7 @@
 }
 
 .btn-danger {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: linear-gradient(135deg, var(--error) 0%, var(--error-dark) 100%);
     color: var(--white);
     box-shadow: var(--shadow-md);
 }
@@ -1439,7 +1472,7 @@
 }
 
 .delete-section-highlight {
-    color: var(--accent-purple);
+    color: var(--asj-green-600);
     font-weight: 700;
 }
 
@@ -1449,10 +1482,10 @@
     justify-content: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-md) var(--spacing-lg);
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    border-left: 4px solid var(--status-pending);
+    background: linear-gradient(135deg, var(--warning-light) 0%, #fde68a 100%);
+    border-left: 4px solid var(--warning);
     border-radius: var(--radius-lg);
-    color: #92400e;
+    color: var(--warning-dark);
     font-size: 0.95rem;
     line-height: 1.5;
     margin-bottom: var(--spacing-lg);
@@ -1512,14 +1545,14 @@
 
 .alert-warning {
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%);
-    border-left: 4px solid var(--status-pending);
-    color: #92400e;
+    border-left: 4px solid var(--warning);
+    color: var(--warning-dark);
 }
 
 .alert-info {
-    background: linear-gradient(135deg, rgba(79, 172, 254, 0.1) 0%, rgba(0, 242, 254, 0.1) 100%);
-    border-left: 4px solid #0284c7;
-    color: #0284c7;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%);
+    border-left: 4px solid var(--info);
+    color: var(--info);
 }
 
 .alert-icon {

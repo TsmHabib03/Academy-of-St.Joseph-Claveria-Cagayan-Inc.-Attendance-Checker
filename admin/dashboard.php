@@ -163,6 +163,9 @@ $recentAttendance = $dashboardData['recentActivity'];
 include 'includes/header_modern.php';
 ?>
 
+<!-- ASJ Modern Dashboard Theme -->
+<link rel="stylesheet" href="../css/asj-dashboard-modern.css">
+
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
@@ -178,233 +181,6 @@ include 'includes/header_modern.php';
 <script>
     window.dashboardData = <?php echo json_encode($dashboardData); ?>;
 </script>
-
-<style>
-    /* Loading Overlay */
-    .dashboard-loader {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(255, 255, 255, 0.95);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-    
-    .dashboard-loader.hidden {
-        opacity: 0;
-        visibility: hidden;
-    }
-    
-    .loader-content {
-        text-align: center;
-    }
-    
-    .spinner {
-        width: 50px;
-        height: 50px;
-        border: 4px solid var(--gray-200);
-        border-top-color: var(--primary-500);
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-        margin: 0 auto 20px;
-    }
-    
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-    
-    .loader-content p {
-        color: var(--gray-600);
-        font-weight: 600;
-    }
-
-    /* Dashboard Specific Styles */
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: var(--space-6);
-        margin-bottom: var(--space-8);
-    }
-
-    .dashboard-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: var(--space-6);
-    }
-
-    .recent-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: var(--space-4);
-        border-bottom: 1px solid var(--gray-100);
-        transition: all var(--transition-base);
-    }
-
-    .recent-item:last-child {
-        border-bottom: none;
-    }
-
-    .recent-item:hover {
-        background: var(--gray-50);
-    }
-
-    .recent-student-info {
-        display: flex;
-        align-items: center;
-        gap: var(--space-3);
-        flex: 1;
-    }
-
-    .recent-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: var(--radius-full);
-        background: linear-gradient(135deg, var(--primary-400), var(--primary-600));
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: var(--text-sm);
-    }
-
-    .recent-details h4 {
-        font-size: var(--text-sm);
-        font-weight: 600;
-        color: var(--gray-900);
-        margin: 0 0 var(--space-1) 0;
-    }
-
-    .recent-details p {
-        font-size: var(--text-xs);
-        color: var(--gray-500);
-        margin: 0;
-    }
-
-    .chart-container {
-        position: relative;
-        height: 300px;
-    }
-
-    .quick-actions-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: var(--space-4);
-    }
-
-    .quick-action-card {
-        padding: var(--space-4);
-        background: white;
-        border: 2px solid var(--gray-200);
-        border-radius: var(--radius-xl);
-        text-align: center;
-        text-decoration: none;
-        color: var(--gray-700);
-        transition: all var(--transition-base);
-    }
-
-    .quick-action-card:hover {
-        border-color: var(--primary-500);
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-lg);
-    }
-
-    .quick-action-card i {
-        font-size: var(--text-3xl);
-        color: var(--primary-500);
-        margin-bottom: var(--space-3);
-    }
-
-    .quick-action-card span {
-        display: block;
-        font-weight: 600;
-        font-size: var(--text-sm);
-    }
-    
-    /* Needs Attention Styles */
-    .attention-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: var(--space-4);
-        border-bottom: 1px solid var(--gray-100);
-        transition: all var(--transition-base);
-    }
-    
-    .attention-item:last-child {
-        border-bottom: none;
-    }
-    
-    .attention-item:hover {
-        background: var(--red-50);
-    }
-    
-    .attention-info {
-        display: flex;
-        align-items: center;
-        gap: var(--space-3);
-        flex: 1;
-    }
-    
-    .attention-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: var(--radius-full);
-        background: var(--red-100);
-        color: var(--red-600);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: var(--text-lg);
-    }
-    
-    .attention-details h4 {
-        font-size: var(--text-sm);
-        font-weight: 600;
-        color: var(--gray-900);
-        margin: 0 0 var(--space-1) 0;
-    }
-    
-    .attention-details p {
-        font-size: var(--text-xs);
-        color: var(--gray-500);
-        margin: 0;
-    }
-    
-    .empty-state {
-        padding: var(--space-8);
-        text-align: center;
-        color: var(--gray-500);
-    }
-    
-    .empty-state i {
-        font-size: var(--text-4xl);
-        margin-bottom: var(--space-4);
-        opacity: 0.5;
-    }
-
-    @media (min-width: 1024px) {
-        .dashboard-grid {
-            grid-template-columns: 2fr 1fr;
-        }
-    }
-
-    @media (max-width: 640px) {
-        .stats-grid {
-            grid-template-columns: 1fr;
-        }
-        
-        .chart-container {
-            height: 250px;
-        }
-    }
-</style>
 
 <!-- Stats Cards -->
 <div class="stats-grid">
@@ -640,6 +416,20 @@ include 'includes/header_modern.php';
         const presentData = weeklyData.map(day => parseInt(day.present) || 0);
         const absentData = weeklyData.map(day => parseInt(day.absent) || 0);
         
+        // ASJ Color Palette
+        const asjColors = {
+            green: {
+                primary: '#4CAF50',
+                light: 'rgba(76, 175, 80, 0.8)',
+                lighter: 'rgba(76, 175, 80, 0.5)'
+            },
+            red: {
+                primary: '#EF4444',
+                light: 'rgba(239, 68, 68, 0.8)',
+                lighter: 'rgba(239, 68, 68, 0.5)'
+            }
+        };
+        
         // Create chart
         weeklyChart = new Chart(ctx, {
             type: 'bar',
@@ -649,8 +439,8 @@ include 'includes/header_modern.php';
                     {
                         label: 'Present',
                         data: presentData,
-                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                        borderColor: 'rgb(16, 185, 129)',
+                        backgroundColor: asjColors.green.light,
+                        borderColor: asjColors.green.primary,
                         borderWidth: 2,
                         borderRadius: 6,
                         borderSkipped: false
@@ -658,8 +448,8 @@ include 'includes/header_modern.php';
                     {
                         label: 'Absent',
                         data: absentData,
-                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
-                        borderColor: 'rgb(239, 68, 68)',
+                        backgroundColor: asjColors.red.light,
+                        borderColor: asjColors.red.primary,
                         borderWidth: 2,
                         borderRadius: 6,
                         borderSkipped: false
@@ -761,21 +551,21 @@ include 'includes/header_modern.php';
         const presentData = sectionData.map(s => parseInt(s.present) || 0);
         const totalData = sectionData.map(s => parseInt(s.total) || 0);
         
-        // Generate vibrant colors
-        const colors = [
-            'rgba(14, 165, 233, 0.8)',   // Sky Blue
-            'rgba(16, 185, 129, 0.8)',   // Green
-            'rgba(245, 158, 11, 0.8)',   // Amber
-            'rgba(239, 68, 68, 0.8)',    // Red
-            'rgba(139, 92, 246, 0.8)',   // Purple
-            'rgba(236, 72, 153, 0.8)',   // Pink
-            'rgba(6, 182, 212, 0.8)',    // Cyan
-            'rgba(234, 179, 8, 0.8)',    // Yellow
-            'rgba(168, 85, 247, 0.8)',   // Violet
-            'rgba(34, 197, 94, 0.8)'     // Lime
+        // ASJ Color Palette for sections - vibrant greens, golds, and complementary colors
+        const asjSectionColors = [
+            'rgba(76, 175, 80, 0.8)',    // ASJ Green Primary
+            'rgba(255, 193, 7, 0.8)',    // ASJ Gold
+            'rgba(102, 187, 106, 0.8)',  // ASJ Green Medium
+            'rgba(255, 179, 0, 0.8)',    // Gold Dark
+            'rgba(16, 185, 129, 0.8)',   // Success Green
+            'rgba(255, 224, 130, 0.8)',  // Light Gold
+            'rgba(46, 125, 50, 0.8)',    // ASJ Green Dark
+            'rgba(255, 213, 79, 0.8)',   // Amber
+            'rgba(129, 199, 132, 0.8)',  // Light Green
+            'rgba(255, 204, 128, 0.8)'   // Peach Gold
         ];
         
-        const borderColors = colors.map(c => c.replace('0.8', '1'));
+        const borderColors = asjSectionColors.map(c => c.replace('0.8', '1'));
         
         // Create chart
         sectionChart = new Chart(ctx, {
@@ -784,7 +574,7 @@ include 'includes/header_modern.php';
                 labels: labels,
                 datasets: [{
                     data: presentData,
-                    backgroundColor: colors,
+                    backgroundColor: asjSectionColors,
                     borderColor: borderColors,
                     borderWidth: 2,
                     hoverOffset: 10,

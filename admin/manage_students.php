@@ -8,8 +8,8 @@ $currentAdmin = getCurrentAdmin();
 $pageTitle = isset($_GET['id']) ? 'Edit Student' : 'Add Student';
 $pageIcon = isset($_GET['id']) ? 'user-edit' : 'user-plus';
 
-// Add external CSS for manage students
-$additionalCSS = ['../css/manage-students.css'];
+// Add external CSS for manage students with cache buster
+$additionalCSS = ['../css/manage-students.css?v=' . time()];
 
 // Initialize variables
 $message = '';
@@ -41,49 +41,77 @@ if (isset($_GET['id'])) {
 // Function to auto-create section if it doesn't exist
 function autoCreateSection($pdo, $sectionName, $studentClass = '') {
     if (empty($sectionName)) {
-        return false;
+        return ['success' => false, 'message' => 'Section name is required'];
     }
     
     try {
-        // Check if section already exists
-        $checkStmt = $pdo->prepare("SELECT id FROM sections WHERE section_name = ?");
+        // Check if section already exists (case-insensitive)
+        $checkStmt = $pdo->prepare("SELECT id, section_name FROM sections WHERE LOWER(section_name) = LOWER(?)");
         $checkStmt->execute([$sectionName]);
+        $existingSection = $checkStmt->fetch(PDO::FETCH_ASSOC);
         
-        if ($checkStmt->rowCount() === 0) {
-            // Extract grade level from student's class field (e.g., "Grade 12" -> "12", "Kindergarten" -> "K")
-            $gradeLevel = '';
-            if (!empty($studentClass)) {
-                if (preg_match('/^Kindergarten$/i', $studentClass)) {
-                    $gradeLevel = 'K';
-                } elseif (preg_match('/^Grade\s+(\d{1,2})$/i', $studentClass, $matches)) {
-                    $gradeLevel = $matches[1];
-                }
-            }
-            
-            // Fallback: Extract from section name if class didn't provide (e.g., "12-BARBERRA" -> "12")
-            if (empty($gradeLevel) && preg_match('/^(\d{1,2})[-_\s]/', $sectionName, $matches)) {
-                $gradeLevel = $matches[1];
-            }
-            
-            // Get current school year
-            $currentYear = date('Y');
-            $nextYear = $currentYear + 1;
-            $schoolYear = $currentYear . '-' . $nextYear;
-            
-            // Insert new section
-            $insertStmt = $pdo->prepare("
-                INSERT INTO sections (section_name, grade_level, school_year, status, created_at) 
-                VALUES (?, ?, ?, 'active', NOW())
-            ");
-            $insertStmt->execute([$sectionName, $gradeLevel, $schoolYear]);
-            
-            return true;
+        if ($existingSection) {
+            // Section already exists
+            return ['success' => true, 'message' => 'Section already exists', 'section_id' => $existingSection['id'], 'exists' => true];
         }
         
-        return false; // Section already exists
+        // Extract grade level from student's class field (e.g., "Grade 12" -> "12", "Kindergarten" -> "K")
+        $gradeLevel = '';
+        if (!empty($studentClass)) {
+            if (preg_match('/^Kindergarten$/i', $studentClass)) {
+                $gradeLevel = 'K';
+            } elseif (preg_match('/^Grade\s+(\d{1,2})$/i', $studentClass, $matches)) {
+                $gradeLevel = $matches[1];
+            }
+        }
+        
+        // Fallback: Extract from section name if class didn't provide (e.g., "12-BARBERRA" -> "12")
+        if (empty($gradeLevel) && preg_match('/^(\d{1,2})[-_\s]/', $sectionName, $matches)) {
+            $gradeLevel = $matches[1];
+        }
+        
+        // Get current school year
+        $currentYear = date('Y');
+        $nextYear = $currentYear + 1;
+        $schoolYear = $currentYear . '-' . $nextYear;
+        
+            // Insert new section with proper error handling
+            $insertStmt = $pdo->prepare("
+                INSERT INTO sections (section_name, grade_level, school_year, is_active, created_at) 
+                VALUES (?, ?, ?, 1, NOW())
+            ");
+            
+            $inserted = $insertStmt->execute([$sectionName, $gradeLevel, $schoolYear]);        if ($inserted) {
+            $newSectionId = $pdo->lastInsertId();
+            error_log("Section created successfully: $sectionName (ID: $newSectionId, Grade: $gradeLevel)");
+            return ['success' => true, 'message' => 'Section created successfully', 'section_id' => $newSectionId, 'exists' => false];
+        } else {
+            error_log("Failed to insert section: $sectionName");
+            return ['success' => false, 'message' => 'Failed to create section'];
+        }
+        
+    } catch (PDOException $e) {
+        // Handle duplicate entry errors specifically
+        if ($e->getCode() == 23000) {
+            error_log("Duplicate section detected: $sectionName - " . $e->getMessage());
+            // Try to get the existing section ID
+            try {
+                $checkStmt = $pdo->prepare("SELECT id FROM sections WHERE LOWER(section_name) = LOWER(?)");
+                $checkStmt->execute([$sectionName]);
+                $existingSection = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                if ($existingSection) {
+                    return ['success' => true, 'message' => 'Section already exists', 'section_id' => $existingSection['id'], 'exists' => true];
+                }
+            } catch (Exception $inner) {
+                error_log("Error fetching existing section: " . $inner->getMessage());
+            }
+            return ['success' => false, 'message' => 'Section already exists but could not be retrieved'];
+        }
+        error_log("Auto-create section error: " . $e->getMessage() . " (Code: " . $e->getCode() . ")");
+        return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
     } catch (Exception $e) {
         error_log("Auto-create section error: " . $e->getMessage());
-        return false;
+        return ['success' => false, 'message' => 'Error creating section: ' . $e->getMessage()];
     }
 }
 
@@ -146,7 +174,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $messageType = "error";
                     } else {
                         // Auto-create section if it doesn't exist (pass student's class for grade level extraction)
-                        autoCreateSection($pdo, $section, $class);
+                        $sectionResult = autoCreateSection($pdo, $section, $class);
+                        
+                        // Log the section creation result for debugging
+                        if ($sectionResult['success']) {
+                            error_log("Section check for '$section': " . ($sectionResult['exists'] ? 'Already exists' : 'Created new'));
+                        } else {
+                            error_log("Section creation failed for '$section': " . $sectionResult['message']);
+                        }
                         
                         // Insert new student
                         $stmt = $pdo->prepare("
@@ -186,7 +221,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $messageType = "error";
                     } else {
                         // Auto-create section if it doesn't exist (in case section changed, pass student's class for grade level)
-                        autoCreateSection($pdo, $section, $class);
+                        $sectionResult = autoCreateSection($pdo, $section, $class);
+                        
+                        // Log the section creation result for debugging
+                        if ($sectionResult['success']) {
+                            error_log("Section check for '$section': " . ($sectionResult['exists'] ? 'Already exists' : 'Created new'));
+                        } else {
+                            error_log("Section update failed for '$section': " . $sectionResult['message']);
+                        }
                         
                         // Update student
                         $stmt = $pdo->prepare("
@@ -697,7 +739,7 @@ include 'includes/header_modern.php';
     }
 
     .modal-title i {
-        color: var(--primary-600);
+        color: var(--asj-green-600);
     }
 
     .modal-close {

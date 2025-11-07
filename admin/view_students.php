@@ -64,28 +64,68 @@ include 'includes/header_modern.php';
 ?>
 
 <style>
-    /* ===== CSS VARIABLES ===== */
+    /* ===== ASJ MODERN CSS VARIABLES ===== */
     :root {
-        --primary-50: #f0f9ff;
-        --primary-100: #e0f2fe;
-        --primary-400: #38bdf8;
-        --primary-500: #667eea;
-        --primary-600: #5a67d8;
-        --primary-700: #4c51bf;
-        --accent-500: #764ba2;
-        --accent-600: #6b3fa0;
-        --blue-50: #eff6ff;
-        --red-500: #ef4444;
-        --red-600: #dc2626;
-        --gray-50: #f9fafb;
-        --gray-100: #f3f4f6;
-        --gray-200: #e5e7eb;
-        --gray-300: #d1d5db;
-        --gray-400: #9ca3af;
-        --gray-500: #6b7280;
-        --gray-600: #4b5563;
-        --gray-700: #374151;
-        --gray-900: #111827;
+        /* ASJ Brand Colors */
+        --asj-green-50: #E8F5E9;
+        --asj-green-100: #C8E6C9;
+        --asj-green-400: #66BB6A;
+        --asj-green-500: #4CAF50;
+        --asj-green-600: #43A047;
+        --asj-green-700: #388E3C;
+        --asj-gold-50: #FFF9E6;
+        --asj-gold-400: #FFD54F;
+        --asj-gold-500: #FFC107;
+        --asj-gold-600: #FFB300;
+        
+        /* Modern Neutrals */
+        --neutral-50: #FAFBFC;
+        --neutral-100: #F4F6F8;
+        --neutral-200: #E5E9ED;
+        --neutral-300: #D0D7DE;
+        --neutral-400: #8B96A5;
+        --neutral-500: #6E7C8C;
+        --neutral-600: #556575;
+        --neutral-700: #3E4C59;
+        --neutral-900: #1F2937;
+        
+        /* Semantic Colors */
+        --success-light: #D1FAE5;
+        --success: #10B981;
+        --success-dark: #059669;
+        --error-light: #FEE2E2;
+        --error: #EF4444;
+        --error-dark: #DC2626;
+        --warning-light: #FEF3C7;
+        --warning: #F59E0B;
+        --warning-dark: #D97706;
+        --info-light: #DBEAFE;
+        --info: #3B82F6;
+        --info-dark: #2563EB;
+        
+        /* Legacy compatibility */
+        --primary-50: #E8F5E9;
+        --primary-100: #C8E6C9;
+        --primary-400: #66BB6A;
+        --primary-500: #4CAF50;
+        --primary-600: #43A047;
+        --primary-700: #388E3C;
+        --accent-500: #FFC107;
+        --accent-600: #FFB300;
+        --blue-50: #DBEAFE;
+        --red-500: #EF4444;
+        --red-600: #DC2626;
+        --gray-50: #FAFBFC;
+        --gray-100: #F4F6F8;
+        --gray-200: #E5E9ED;
+        --gray-300: #D0D7DE;
+        --gray-400: #8B96A5;
+        --gray-500: #6E7C8C;
+        --gray-600: #556575;
+        --gray-700: #3E4C59;
+        --gray-900: #1F2937;
+        
+        /* Spacing */
         --space-1: 0.25rem;
         --space-2: 0.5rem;
         --space-3: 0.75rem;
@@ -94,11 +134,16 @@ include 'includes/header_modern.php';
         --space-6: 1.5rem;
         --space-8: 2rem;
         --space-12: 3rem;
-        --radius-md: 0.5rem;
-        --radius-lg: 0.75rem;
-        --radius-xl: 1rem;
-        --radius-2xl: 1.5rem;
+        
+        /* Border Radius */
+        --radius-sm: 6px;
+        --radius-md: 10px;
+        --radius-lg: 14px;
+        --radius-xl: 18px;
+        --radius-2xl: 24px;
         --radius-full: 9999px;
+        
+        /* Typography */
         --text-xs: 0.75rem;
         --text-sm: 0.875rem;
         --text-base: 1rem;
@@ -106,22 +151,29 @@ include 'includes/header_modern.php';
         --text-xl: 1.25rem;
         --text-2xl: 1.5rem;
         --text-6xl: 3.75rem;
-        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-        --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-        --transition-base: all 0.2s ease;
+        
+        /* Shadows */
+        --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05);
+        --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+        --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.12), 0 10px 10px rgba(0, 0, 0, 0.04);
+        --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.15);
+        
+        /* Transitions */
+        --transition-fast: 150ms ease-in-out;
+        --transition-base: 200ms ease-in-out;
+        --transition-slow: 300ms ease-in-out;
     }
 
-    /* ===== PAGE HEADER ENHANCED ===== */
+    /* ===== PAGE HEADER ENHANCED - ASJ THEMED ===== */
     .page-header-enhanced {
         position: relative;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-700) 100%);
         border-radius: var(--radius-2xl);
         margin-bottom: var(--space-8);
         overflow: hidden;
-        box-shadow: 0 10px 40px -10px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 10px 40px -10px rgba(76, 175, 80, 0.4);
         animation: headerSlideIn 0.6s ease-out;
     }
 
@@ -461,7 +513,7 @@ include 'includes/header_modern.php';
         width: 56px;
         height: 56px;
         border-radius: var(--radius-xl);
-        background: linear-gradient(135deg, var(--primary-500), var(--accent-500));
+        background: linear-gradient(135deg, var(--asj-green-500), var(--asj-green-600));
         display: flex;
         align-items: center;
         justify-content: center;
@@ -525,8 +577,8 @@ include 'includes/header_modern.php';
 
     .filter-search input:focus {
         outline: none;
-        border-color: var(--primary-500);
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: var(--asj-green-500);
+        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
     }
 
     .filter-search-icon {
@@ -554,8 +606,8 @@ include 'includes/header_modern.php';
 
     .filter-select select:focus {
         outline: none;
-        border-color: var(--primary-500);
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: var(--asj-green-500);
+        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
     }
 
     /* Responsive Table */
@@ -569,11 +621,11 @@ include 'includes/header_modern.php';
 
     .table-header {
         padding: var(--space-5);
-        border-bottom: 2px solid var(--gray-200);
+        border-bottom: 2px solid var(--neutral-200);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: linear-gradient(135deg, var(--gray-50) 0%, var(--blue-50) 100%);
+        background: linear-gradient(135deg, var(--asj-green-50) 0%, var(--neutral-50) 100%);
     }
 
     .table-title {
@@ -593,7 +645,7 @@ include 'includes/header_modern.php';
         display: flex;
         align-items: center;
         justify-content: center;
-        color: var(--primary-600);
+        color: var(--asj-green-600);
         box-shadow: var(--shadow-sm);
     }
 
@@ -662,7 +714,7 @@ include 'includes/header_modern.php';
     }
 
     .desktop-table tbody tr:hover {
-        background: var(--blue-50);
+        background: var(--asj-green-50);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
 
@@ -692,7 +744,7 @@ include 'includes/header_modern.php';
     .student-lrn {
         font-family: 'Courier New', monospace;
         font-weight: 600;
-        color: var(--primary-600);
+        color: var(--asj-green-600);
         white-space: nowrap;
     }
 
@@ -708,18 +760,18 @@ include 'includes/header_modern.php';
     }
 
     .badge-primary {
-        background: rgba(59, 130, 246, 0.1);
-        color: #2563eb;
+        background: var(--asj-green-50);
+        color: var(--asj-green-700);
     }
 
     .badge-error {
-        background: rgba(239, 68, 68, 0.1);
-        color: #dc2626;
+        background: var(--error-light);
+        color: var(--error-dark);
     }
 
     .badge-info {
-        background: rgba(14, 165, 233, 0.1);
-        color: #0284c7;
+        background: var(--info-light);
+        color: var(--info-dark);
     }
 
     .badge i {
@@ -747,63 +799,68 @@ include 'includes/header_modern.php';
     }
 
     .btn-primary {
-        background: linear-gradient(135deg, var(--primary-500), var(--accent-500));
+        background: linear-gradient(135deg, var(--asj-green-500), var(--asj-green-600));
         color: white;
     }
 
     .btn-primary:hover {
+        background: linear-gradient(135deg, var(--asj-green-600), var(--asj-green-700));
         transform: translateY(-1px);
         box-shadow: var(--shadow-md);
     }
 
     .btn-success {
-        background: linear-gradient(135deg, #22c55e, #16a34a);
+        background: linear-gradient(135deg, var(--success), var(--success-dark));
         color: white;
     }
 
     .btn-success:hover {
+        background: linear-gradient(135deg, var(--success-dark), #047857);
         transform: translateY(-1px);
         box-shadow: var(--shadow-md);
     }
 
     .btn-warning {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
+        background: linear-gradient(135deg, var(--warning), var(--warning-dark));
         color: white;
     }
 
     .btn-warning:hover {
+        background: linear-gradient(135deg, var(--warning-dark), #b45309);
         transform: translateY(-1px);
         box-shadow: var(--shadow-md);
     }
 
     .btn-danger {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
+        background: linear-gradient(135deg, var(--error), var(--error-dark));
         color: white;
     }
 
     .btn-danger:hover {
+        background: linear-gradient(135deg, var(--error-dark), #b91c1c);
         transform: translateY(-1px);
         box-shadow: var(--shadow-md);
     }
 
     .btn-secondary {
-        background: var(--gray-200);
-        color: var(--gray-700);
+        background: var(--neutral-200);
+        color: var(--neutral-700);
     }
 
     .btn-secondary:hover {
-        background: var(--gray-300);
+        background: var(--neutral-300);
     }
 
     .btn-outline {
         background: white;
-        border: 2px solid var(--gray-300);
-        color: var(--gray-700);
+        border: 2px solid var(--neutral-300);
+        color: var(--neutral-700);
     }
 
     .btn-outline:hover {
-        background: var(--gray-50);
-        border-color: var(--gray-400);
+        background: var(--asj-green-50);
+        border-color: var(--asj-green-500);
+        color: var(--asj-green-700);
     }
 
     /* Mobile Cards */
@@ -964,7 +1021,7 @@ include 'includes/header_modern.php';
     }
 
     .modal-title i {
-        color: var(--primary-600);
+        color: var(--asj-green-600);
     }
 
     .modal-close {

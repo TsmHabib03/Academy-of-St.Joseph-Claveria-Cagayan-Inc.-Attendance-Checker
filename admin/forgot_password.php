@@ -12,17 +12,17 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Reset Your Admin Password - Attendance Management System">
-    <meta name="theme-color" content="#667eea">
-    <title>Forgot Password - Admin Portal</title>
+    <meta name="description" content="Reset Your Admin Password - Academy of St. Joseph">
+    <meta name="theme-color" content="#4CAF50">
+    <title>Forgot Password - Academy of St. Joseph</title>
     
     <!-- Preload critical assets -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="../css/admin-login.css">
+    <link rel="stylesheet" href="../css/asj-admin-theme.css">
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔑</text></svg>">
@@ -51,13 +51,10 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
             <!-- Logo & Header -->
             <div class="login-header">
                 <div class="logo-container">
-                    <svg class="shield-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        <path d="M12 8v5"></path>
-                        <path d="M12 16h.01"></path>
-                    </svg>
+                    <img src="../assets/asj-logo.png" alt="ASJ Logo" onerror="this.style.display='none';">
                 </div>
                 <h1 class="login-title">Forgot Password?</h1>
+                <h2 class="login-subtitle-small">Academy of St. Joseph</h2>
                 <p class="login-subtitle">Enter your email address and we'll send you a link to reset your password</p>
             </div>
 
@@ -136,6 +133,12 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
                     </span>
                 </button>
             </form>
+
+            <!-- School Footer -->
+            <div class="school-footer">
+                <p>© 2025 Academy of St. Joseph, Claveria Cagayan Inc.</p>
+                <p class="footer-subtitle">The Josephites: Integrity, Service, Excellence, Empowerment</p>
+            </div>
 
             <!-- Security Badge -->
             <div class="security-badge">
