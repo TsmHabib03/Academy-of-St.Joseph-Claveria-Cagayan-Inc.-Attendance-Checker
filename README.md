@@ -1,6 +1,8 @@
-# AttendEase - Smart Attendance Management System
+# Academy of St. Joseph Claveria, Cagayan Inc. Attendance Checker
 
 A comprehensive web-based attendance management system using QR code scanning technology and LRN (Learner Reference Number) identification. Built with modern web technologies including HTML5, CSS3, JavaScript, PHP 8+, and MySQL 8.
+
+This system was developed as part of a research project to modernize and streamline the attendance tracking process at Academy of St. Joseph Claveria, Cagayan Inc., providing an efficient and accurate solution for monitoring student attendance through QR code technology.
 
 ## 🌟 Features
 
@@ -146,14 +148,14 @@ chmod 644 logs/
 ### 4. Web Server Setup
 
 #### For XAMPP (Windows/Mac/Linux):
-1. Copy the `AttendEase` folder to `C:\xampp\htdocs\`
+1. Copy the `ACSCCI-Attendance-Checker` folder to `C:\xampp\htdocs\`
 2. Start Apache and MySQL from XAMPP Control Panel
-3. Access via `http://localhost/AttendEase/`
+3. Access via `http://localhost/ACSCCI-Attendance-Checker/`
 
 #### For Production (Linux):
-1. Copy files to `/var/www/html/attendease/`
+1. Copy files to `/var/www/html/acscci-attendance-checker/`
 2. Configure virtual host with SSL certificate
-3. Set proper file ownership: `chown -R www-data:www-data /var/www/html/attendease/`
+3. Set proper file ownership: `chown -R www-data:www-data /var/www/html/acscci-attendance-checker/`
 
 ### 5. Default Admin Account
 
@@ -208,7 +210,7 @@ AttendEase uses a simple, flexible attendance tracking model:
 ## 📁 File Structure
 
 ```
-AttendEase/
+ACSCCI-Attendance-Checker/
 ├── index.php                        # Public landing page
 ├── register_student.php             # Student self-registration form
 ├── scan_attendance.php              # Full-screen QR code scanner (instant attendance)
@@ -366,7 +368,7 @@ AttendEase/
 ### For Students
 
 #### 1. Self-Registration
-1. Visit `http://localhost/AttendEase/register_student.php`
+1. Visit `http://localhost/ACSCCI-Attendance-Checker/register_student.php`
 2. Enter your 11-13 digit LRN
 3. Fill in your full name (first, middle, last)
 4. Select gender and enter email address
@@ -375,7 +377,7 @@ AttendEase/
 7. Download or print your QR code for attendance scanning
 
 #### 2. Marking Attendance via QR Scan
-1. Visit `http://localhost/AttendEase/scan_attendance.php`
+1. Visit `http://localhost/ACSCCI-Attendance-Checker/scan_attendance.php`
 2. Allow camera access when prompted
 3. Hold your QR code in front of the camera
 4. System instantly records your Time In or Time Out
@@ -384,7 +386,7 @@ AttendEase/
 ### For Teachers/Admins
 
 #### 1. Admin Login
-1. Navigate to `http://localhost/AttendEase/admin/login.php`
+1. Navigate to `http://localhost/ACSCCI-Attendance-Checker/admin/login.php`
 2. Enter username and password (default: `admin` / `admin123456`)
 3. Access admin dashboard with all management features
 
@@ -903,12 +905,14 @@ This project is developed for educational purposes and is open-source.
 - Special thanks to the open-source community
 
 ### Project Information
-- **Project Name**: AttendEase
-- **Repository**: Attendance_Checker_12-Barbera-main
+- **Project Name**: Academy of St. Joseph Claveria, Cagayan Inc. Attendance Checker
+- **Institution**: Academy of St. Joseph Claveria, Cagayan Inc.
+- **Repository**: Academy-of-St.Joseph-Claveria-Cagayan-Inc.-Attendance-Checker
 - **Owner**: TsmHabib03
 - **Current Version**: 2.0 (Time In/Time Out System)
-- **Last Updated**: November 1, 2025
+- **Last Updated**: November 7, 2025
 - **License**: Educational Open Source
+- **Research Purpose**: Developed as part of a research study on modernizing attendance management systems in educational institutions
 
 ---
 
@@ -925,7 +929,7 @@ nano config/db_config.php  # Update credentials
 chmod 755 uploads/qrcodes/
 
 # 4. Access application
-http://localhost/AttendEase/
+http://localhost/ACSCCI-Attendance-Checker/
 
 # 5. Admin login
 Username: admin
@@ -934,93 +938,179 @@ Password: admin123456
 
 ---
 
-**🎓 AttendEase - Making Attendance Easy**
+## 🎓 Research Context
 
-For questions, issues, or contributions, please visit the GitHub repository or contact support.
+This attendance management system was developed as a research project for the Academy of St. Joseph Claveria, Cagayan Inc. The research aims to:
+
+- **Modernize Attendance Tracking**: Replace traditional manual attendance methods with automated QR code technology
+- **Improve Accuracy**: Eliminate human error in attendance recording and reporting
+- **Save Time**: Reduce time spent on attendance marking and report generation
+- **Enhance Data Analysis**: Provide comprehensive analytics and insights into attendance patterns
+- **Increase Security**: Ensure accurate identification through unique LRN-based QR codes
+- **Support Decision Making**: Provide administrators with real-time data for informed decisions
+
+### Technology Stack Overview
+
+**Frontend Technologies:**
+- HTML5, CSS3, JavaScript (ES6+)
+- Chart.js 4.4.0 for data visualization
+- ZXing library for QR code scanning
+- Responsive design with mobile-first approach
+
+**Backend Technologies:**
+- PHP 8+ with PDO for database operations
+- MySQL 8.0 with InnoDB engine
+- PHPMailer for email notifications
+- PHPQRCode for QR generation
+
+**Security Features:**
+- Prepared statements to prevent SQL injection
+- Session-based authentication
+- Password hashing and reset functionality
+- Activity logging and audit trails
+
+**Key Features for Research:**
+- Real-time attendance monitoring
+- Comprehensive reporting and analytics
+- Section-based organization
+- Time In/Time Out tracking
+- Automated notifications
+- Data export capabilities (CSV)
+
+---
+
+**📚 Academy of St. Joseph Cleveria, Cagayan Inc. - Attendance Management System**
+
+For questions, issues, or contributions related to this research project, please visit the GitHub repository or contact support.
 
 ---
 ## 💡 Key Concepts & Technology Stack
 
-### Frontend Stack
-- **HTML5**: Semantic markup, forms, media elements
-- **CSS3**: Modern design system with CSS variables, gradients, animations
-- **JavaScript (ES6+)**: Async/await, fetch API, DOM manipulation
-- **Chart.js 4.4.0**: Interactive bar and donut charts for analytics
-- **ZXing Library**: Browser-based QR code scanning with continuous autofocus
-- **DataTables**: Advanced table features (search, sort, pagination)
-- **Responsive Design**: Mobile-first approach with flexbox and grid
+### Frontend Technologies
+- **HTML5**: Semantic markup, forms, media elements for structured content
+- **CSS3**: Modern design system with CSS variables, gradients, and animations
+- **JavaScript (ES6+)**: Async/await, fetch API, DOM manipulation for dynamic interactions
+- **Chart.js 4.4.0**: Interactive bar and donut charts for attendance analytics and data visualization
+- **ZXing Library**: Browser-based QR code scanning with continuous autofocus for real-time attendance marking
+- **DataTables**: Advanced table features including search, sort, and pagination for managing large datasets
+- **Responsive Design**: Mobile-first approach using flexbox and grid for cross-device compatibility
 
-### Backend Stack
-- **PHP 8+**: Modern PHP with type declarations, named arguments
-- **PDO (PHP Data Objects)**: Database abstraction with prepared statements
-- **MySQLi**: Alternative database interface for specific operations
-- **PHPMailer**: SMTP email sending for password resets
-- **PHPQRCode**: Server-side QR code image generation
-- **Session Management**: Secure admin authentication
+### Backend Technologies
+- **PHP 8+**: Modern PHP with type declarations, named arguments, and improved error handling
+- **PDO (PHP Data Objects)**: Database abstraction layer with prepared statements for security
+- **MySQLi**: Alternative database interface for specific database operations
+- **PHPMailer**: SMTP email sending library for password resets and notifications
+- **PHPQRCode**: Server-side QR code image generation using GD library
+- **Session Management**: Secure admin authentication with session lifecycle management
 
-### Database Stack
-- **MySQL 8.0**: Relational database with InnoDB engine
-- **Stored Procedures**: MarkTimeIn, MarkTimeOut, RegisterStudent
-- **Foreign Keys**: CASCADE DELETE for data integrity
-- **Indexes**: Optimized queries on lrn, date, section
-- **UNIQUE Constraints**: Prevent duplicate attendance records
-- **ENUM Types**: Status fields with fixed values
+### Database Architecture
+- **MySQL 8.0**: Relational database management system with InnoDB storage engine
+- **Stored Procedures**: MarkTimeIn, MarkTimeOut, RegisterStudent for business logic encapsulation
+- **Foreign Keys**: CASCADE DELETE relationships for maintaining data integrity
+- **Database Indexes**: Optimized queries on lrn, date, and section columns for fast retrieval
+- **UNIQUE Constraints**: Prevent duplicate attendance records using composite keys (lrn, date)
+- **ENUM Data Types**: Status fields with predefined values for data consistency
+- **Triggers**: Automatic timestamp updates for data auditing
 
-### Architecture Patterns
-- **MVC-like Structure**: Separation of concerns (views, APIs, config)
-- **RESTful APIs**: JSON responses for frontend-backend communication
-- **Database Abstraction**: Single `Database` class for all connections
-- **Configuration Management**: Centralized config files
-- **Error Handling**: Try-catch blocks with user-friendly messages
-- **Logging**: Admin activity audit trail
+### System Architecture
+- **MVC-like Structure**: Clear separation of concerns between views, business logic, and data access
+- **RESTful API Design**: JSON-based APIs for frontend-backend communication
+- **Database Abstraction Layer**: Centralized `Database` class for all database connections
+- **Configuration Management**: Environment-specific settings in dedicated config files
+- **Error Handling Strategy**: Try-catch blocks with user-friendly error messages and logging
+- **Activity Logging**: Complete audit trail of all administrative actions with timestamps
 
-### Security Layers
-1. **Input Validation**: Client and server-side validation
-2. **SQL Injection Prevention**: Prepared statements only
-3. **XSS Protection**: Output escaping with htmlspecialchars()
-4. **Session Security**: Regeneration, timeout, secure cookies
-5. **Access Control**: Admin-only routes with authentication check
-6. **Audit Logging**: Track all administrative actions
+### Security Implementation
+1. **Input Validation**: Multi-layer validation (client-side JavaScript and server-side PHP)
+2. **SQL Injection Prevention**: Exclusively using prepared statements with parameterized queries
+3. **XSS Protection**: Output escaping using htmlspecialchars() on all user-generated content
+4. **Session Security**: Session regeneration, timeout mechanisms, and secure cookie flags
+5. **Access Control**: Role-based access control (RBAC) with admin authentication checks
+6. **Password Security**: MD5 hashing (upgradeable to bcrypt/Argon2 for enhanced security)
+7. **CSRF Protection**: Token-based validation for state-changing operations
+8. **Audit Logging**: Comprehensive tracking of all administrative actions with IP addresses and timestamps
 
-## 📚 Learning Outcomes
+### Performance Optimization
+- **Database Indexing**: Strategic indexes on frequently queried columns
+- **Query Optimization**: Efficient JOIN operations and subquery usage
+- **Caching Strategy**: Session-based caching for frequently accessed data
+- **Asset Optimization**: Minified CSS and JavaScript files
+- **CDN Integration**: External libraries loaded from CDNs for faster delivery
 
-### What You'll Learn by Studying AttendEase
+## 📚 Research and Learning Outcomes
 
-**Database Design**:
-- Relational database schema design
-- Foreign key relationships and cascading
-- Indexing strategies for performance
-- Stored procedures for business logic
-- Data normalization and integrity
+### Academic Learning Objectives
 
-**PHP Development**:
-- PDO and prepared statements
-- Session management and authentication
-- File uploads and image generation
-- Email sending with SMTP
-- Error handling and logging
-- API endpoint development
+This attendance management system serves as a comprehensive case study for understanding modern web application development and its application in educational technology. Researchers and students can gain insights into:
 
-**JavaScript & Frontend**:
-- Camera API and media streams
-- QR code scanning with ZXing
-- Fetch API for asynchronous requests
-- Chart.js for data visualization
-- DOM manipulation and events
-- Form validation and UX feedback
+**Database Design & Management**:
+- Relational database schema design and entity-relationship modeling
+- Foreign key relationships and referential integrity with CASCADE operations
+- Indexing strategies for query performance optimization
+- Stored procedures for encapsulating business logic
+- Data normalization principles (1NF, 2NF, 3NF)
+- Database constraints and data integrity enforcement
 
-**Web Security**:
-- SQL injection prevention
-- Cross-site scripting (XSS) mitigation
-- Authentication and authorization
-- Password hashing (MD5, bcrypt)
-- CSRF protection concepts
-- Secure session management
+**Backend Development with PHP**:
+- PDO (PHP Data Objects) and prepared statements for secure database access
+- Session management and authentication mechanisms
+- File system operations and image generation
+- SMTP email sending for automated notifications
+- Comprehensive error handling and logging strategies
+- RESTful API endpoint development and best practices
+
+**Frontend Development**:
+- HTML5 Camera API and media stream manipulation
+- QR code scanning implementation using ZXing library
+- Asynchronous JavaScript with Fetch API and Promises
+- Data visualization with Chart.js for attendance analytics
+- DOM manipulation and event-driven programming
+- Client-side form validation and user experience design
+
+**Web Application Security**:
+- SQL injection prevention through parameterized queries
+- Cross-site scripting (XSS) mitigation techniques
+- Authentication and authorization implementation
+- Password hashing algorithms (MD5, bcrypt, Argon2)
+- CSRF (Cross-Site Request Forgery) protection concepts
+- Secure session management and cookie handling
+- Input validation and sanitization strategies
 
 **Full-Stack Integration**:
-- Frontend-backend communication
-- API design and JSON responses
-- File system operations
-- Database transactions
-- Real-time data updates
-- Responsive UI/UX design
+- Frontend-backend communication patterns
+- RESTful API design and JSON data interchange
+- File system operations and upload handling
+- Database transactions and ACID properties
+- Real-time data updates and dynamic content rendering
+- Responsive web design principles and mobile-first approach
+
+**Software Engineering Practices**:
+- Code organization and modular architecture
+- Version control with Git and GitHub
+- Documentation and code commenting standards
+- Testing strategies and quality assurance
+- Deployment procedures and server configuration
+- Maintenance and troubleshooting methodologies
+
+### Research Applications
+
+**Educational Technology Research**:
+- Effectiveness of QR code-based attendance systems
+- Time efficiency comparison: manual vs. automated attendance
+- Accuracy and reliability of attendance data collection
+- User acceptance and adoption of digital attendance solutions
+- Impact on administrative workload reduction
+
+**Data Analytics Research**:
+- Attendance pattern analysis and trend identification
+- Predictive modeling for student attendance behavior
+- Correlation studies between attendance and academic performance
+- Visualization techniques for educational data
+- Report generation and data export methodologies
+
+**System Performance Studies**:
+- Database query optimization and response time analysis
+- Scalability testing for large student populations
+- Network latency and QR code scanning speed evaluation
+- Cross-browser and cross-device compatibility assessment
+- Security vulnerability testing and penetration analysis
