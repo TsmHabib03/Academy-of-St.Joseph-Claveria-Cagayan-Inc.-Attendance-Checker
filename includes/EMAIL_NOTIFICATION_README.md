@@ -17,7 +17,7 @@ This module provides a standalone PHP function that sends email notifications wh
 ## Function Signature
 
 ```php
-sendAttendanceEmailNotification($studentName, $studentEmail, $status, $timestamp)
+sendAttendanceEmailNotification($studentName, $studentEmail, $status, $timestamp, $studentLRN = '', $studentSection = '')
 ```
 
 ### Parameters
@@ -28,6 +28,8 @@ sendAttendanceEmailNotification($studentName, $studentEmail, $status, $timestamp
 | `$studentEmail` | string | Email address (parent/guardian) | "parent@example.com" |
 | `$status` | string | Attendance status: "IN" or "OUT" | "IN" |
 | `$timestamp` | string | Date and time of attendance | "2024-01-15 08:30:00" |
+| `$studentLRN` | string | Student's Learner Reference Number (optional) | "123456789012" |
+| `$studentSection` | string | Student's section (optional) | "Grade 10 - A" |
 
 ### Return Value
 
@@ -71,12 +73,14 @@ Include the function in your PHP file and call it:
 <?php
 require_once __DIR__ . '/includes/email_notification.php';
 
-// Send notification
+// Send notification with full details
 $result = sendAttendanceEmailNotification(
     "Juan Dela Cruz",           // Student name
     "parent@example.com",        // Parent email
     "IN",                        // Status: IN or OUT
-    "2024-01-15 08:30:00"       // Timestamp
+    "2024-01-15 08:30:00",      // Timestamp
+    "123456789012",             // Student LRN (optional)
+    "Grade 10 - A"              // Student Section (optional)
 );
 
 if ($result) {
@@ -89,7 +93,32 @@ if ($result) {
 
 ## Email Template
 
-The function sends a beautifully formatted HTML email that includes:
+The email template is stored as a separate HTML file (`includes/email_template.html`) that uses a modern, school-branded design.
+
+### Design Features
+
+- **School Colors**: Green and yellow color scheme
+  - Dark Green (#14532D) for headers
+  - Green (#15803D) for Time IN status
+  - Red (#DC2626) for Time OUT status
+  - Yellow (#FACC15) for accents and borders
+  - Light background (#F9FAFB)
+
+- **Modern Icons**: All icons are inline SVG (no emojis) for better email client compatibility
+  - Mail icon in header
+  - User icon for student name
+  - Hash icon for LRN
+  - Building icon for section
+  - Clock icon for time
+  - Calendar icon for date
+  - Check/Logout icons for status badges
+
+- **Professional Layout**:
+  - Rounded cards with shadows
+  - Responsive design for mobile devices
+  - School logo placeholder at top
+  - Yellow accent border below header
+  - Color-coded status badges and borders
 
 ### Subject Line
 ```
@@ -97,31 +126,38 @@ Attendance Alert: [Student Name] has Time IN/OUT
 ```
 
 ### Email Body Contains:
-- 🎨 **Professional Header**: Gradient background with school name
-- 📛 **Student's Name**: Clearly displayed
-- 📊 **Status Badge**: Color-coded (Green for IN, Red for OUT)
+- 🏫 **School Logo**: Circular placeholder with "ASJ" initials
+- 📧 **Professional Header**: Green gradient background with school name and yellow border
+- 👤 **Student's Name**: Clearly displayed with icon
+- 🔢 **LRN**: Student's Learner Reference Number
+- 🏛️ **Section**: Student's class section
+- ✅ **Status Badge**: Color-coded badge (Green for IN, Red for OUT) with icon
 - 📅 **Date**: Formatted date (e.g., "January 15, 2024")
 - ⏰ **Time**: Formatted time (e.g., "8:30 AM")
-- 📝 **Automated Notice**: "This is an automated attendance notification."
+- ℹ️ **Automated Notice**: Yellow notice box with info icon
 - 📱 **Mobile Responsive**: Looks great on all devices
 
 ### Example Email Preview
 
 ```
 ┌─────────────────────────────────────┐
-│     ✅ Attendance Alert             │
+│          [ASJ Logo]                 │
+│     📧 Attendance Alert             │
 │  Academy of St. Joseph System       │
+│     ═══════════════════            │  (Yellow border)
 ├─────────────────────────────────────┤
 │ Dear Parent/Guardian,               │
 │                                     │
-│ [Time IN]                           │
+│ [✓ Time IN]  (Green badge)          │
 │                                     │
-│ Student's Name: Juan Dela Cruz      │
-│ Status: Time IN                     │
-│ Date: January 15, 2024              │
-│ Time: 8:30 AM                       │
+│ 👤 Student's Name: Juan Dela Cruz   │
+│ 🔢 LRN: 123456789012                │
+│ 🏛️ Section: Grade 10 - A            │
+│ ✅ Status: Time IN                   │
+│ 📅 Date: January 15, 2024           │
+│ ⏰ Time: 8:30 AM                     │
 │                                     │
-│ 📌 Note: This is an automated       │
+│ ⚠️ Note: This is an automated       │
 │    attendance notification.          │
 ├─────────────────────────────────────┤
 │ Academy of St. Joseph               │
@@ -190,15 +226,19 @@ require_once __DIR__ . '/../includes/email_notification.php';
 // After successfully recording attendance to database
 $studentName = $student['first_name'] . ' ' . $student['last_name'];
 $parentEmail = $student['email'];
+$studentLRN = $student['lrn'];  // Learner Reference Number
+$studentSection = $student['section'];  // e.g., "Grade 10 - A"
 $status = ($isTimeIn) ? 'IN' : 'OUT';
 $timestamp = date('Y-m-d H:i:s');
 
-// Send email notification
+// Send email notification with full details
 $emailResult = sendAttendanceEmailNotification(
     $studentName,
     $parentEmail,
     $status,
-    $timestamp
+    $timestamp,
+    $studentLRN,      // Optional: can be omitted if not available
+    $studentSection   // Optional: can be omitted if not available
 );
 
 // Optional: Log the result
@@ -269,8 +309,30 @@ This will run through various examples including:
 ## Files
 
 - **`includes/email_notification.php`**: Main function file
+- **`includes/email_template.html`**: HTML email template with school colors and modern design
 - **`includes/email_notification_example.php`**: Usage examples and testing
 - **`includes/EMAIL_NOTIFICATION_README.md`**: This documentation file
+
+## Customizing the Email Template
+
+The email template can be customized by editing `includes/email_template.html`. The template uses the following placeholders that are automatically replaced:
+
+- `{{STUDENT_NAME}}` - Student's full name
+- `{{STUDENT_LRN}}` - Student's Learner Reference Number
+- `{{STUDENT_SECTION}}` - Student's section/class
+- `{{STATUS_TEXT}}` - "Time IN" or "Time OUT"
+- `{{STATUS_COLOR}}` - Color code for status (#15803D for IN, #DC2626 for OUT)
+- `{{STATUS_ICON_PATH}}` - SVG path for status icon
+- `{{FORMATTED_DATE}}` - Formatted date
+- `{{FORMATTED_TIME}}` - Formatted time
+- `{{YEAR}}` - Current year
+
+### Color Customization
+
+To change the school colors, edit the CSS in `email_template.html`:
+- Header gradient: `linear-gradient(135deg, #14532D 0%, #166534 100%)`
+- Yellow accent border: `border-bottom: 4px solid #FACC15`
+- Background: `#F9FAFB`
 
 ## Security Considerations
 
