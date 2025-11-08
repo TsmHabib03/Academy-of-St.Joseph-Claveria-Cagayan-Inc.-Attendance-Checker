@@ -1,0 +1,595 @@
+/**
+ * Manage Students - Form Styling
+ * Academy of St. Joseph Claveria, Cagayan Inc. Attendance Checker
+ * Matches view_students.php design system
+ */
+
+/* ===== ASJ MODERN CSS VARIABLES ===== */
+:root {
+    /* ASJ Brand Colors */
+    --asj-green-50: #E8F5E9;
+    --asj-green-100: #C8E6C9;
+    --asj-green-400: #66BB6A;
+    --asj-green-500: #4CAF50;
+    --asj-green-600: #43A047;
+    --asj-green-700: #388E3C;
+    --asj-gold-50: #FFF9E6;
+    --asj-gold-400: #FFD54F;
+    --asj-gold-500: #FFC107;
+    --asj-gold-600: #FFB300;
+    
+    /* Modern Neutrals */
+    --neutral-50: #FAFBFC;
+    --neutral-100: #F4F6F8;
+    --neutral-200: #E5E9ED;
+    --neutral-300: #D0D7DE;
+    --neutral-400: #8B96A5;
+    --neutral-500: #6E7C8C;
+    --neutral-600: #556575;
+    --neutral-700: #3E4C59;
+    --neutral-900: #1F2937;
+    
+    /* Semantic Colors */
+    --success-light: #D1FAE5;
+    --success: #10B981;
+    --success-dark: #059669;
+    --error-light: #FEE2E2;
+    --error: #EF4444;
+    --error-dark: #DC2626;
+    --warning-light: #FEF3C7;
+    --warning: #F59E0B;
+    --warning-dark: #D97706;
+    --info-light: #DBEAFE;
+    --info: #3B82F6;
+    --info-dark: #2563EB;
+    
+    /* Legacy compatibility */
+    --primary-50: #E8F5E9;
+    --primary-100: #C8E6C9;
+    --primary-400: #66BB6A;
+    --primary-500: #4CAF50;
+    --primary-600: #43A047;
+    --primary-700: #388E3C;
+    --accent-500: #FFC107;
+    --accent-600: #FFB300;
+    --blue-50: #DBEAFE;
+    --red-500: #EF4444;
+    --red-600: #DC2626;
+    --gray-50: #FAFBFC;
+    --gray-100: #F4F6F8;
+    --gray-200: #E5E9ED;
+    --gray-300: #D0D7DE;
+    --gray-400: #8B96A5;
+    --gray-500: #6E7C8C;
+    --gray-600: #556575;
+    --gray-700: #3E4C59;
+    --gray-900: #1F2937;
+    
+    /* Spacing */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+    
+    /* Border Radius */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --radius-2xl: 24px;
+    --radius-full: 9999px;
+    
+    /* Typography */
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+    --text-6xl: 3.75rem;
+    
+    /* Shadows */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.12), 0 10px 10px rgba(0, 0, 0, 0.04);
+    --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.15);
+    
+    /* Transitions */
+    --transition-fast: 150ms ease-in-out;
+    --transition-base: 200ms ease-in-out;
+    --transition-slow: 300ms ease-in-out;
+}
+
+/* Form Card */
+.form-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--space-8);
+    overflow: hidden;
+    border: 1px solid var(--gray-200);
+}
+
+.form-card-header {
+    background: linear-gradient(135deg, var(--asj-green-50) 0%, var(--neutral-50) 100%);
+    padding: var(--space-5);
+    border-bottom: 2px solid var(--neutral-200);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.form-card-title {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--gray-900);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.form-card-title i {
+    width: 40px;
+    height: 40px;
+    background: white;
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--asj-green-600);
+    box-shadow: var(--shadow-sm);
+    font-size: var(--text-lg);
+}
+
+.form-card-body {
+    padding: var(--space-6);
+}
+
+/* Form Grid Layouts */
+.form-grid {
+    display: grid;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.form-grid.two-col {
+    grid-template-columns: 1fr 1fr;
+}
+
+.form-grid.three-col {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* Form Groups */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.form-group label {
+    font-weight: 600;
+    color: var(--gray-700);
+    font-size: var(--text-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.form-group label .required {
+    color: var(--error);
+    font-size: 1rem;
+    margin-left: var(--space-1);
+}
+
+/* Form Inputs */
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    font-size: var(--text-base);
+    font-family: 'Poppins', sans-serif;
+    transition: all var(--transition-base);
+    background: white;
+    color: var(--gray-900);
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    outline: none;
+    border-color: var(--asj-green-500);
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+.form-input:hover,
+.form-select:hover,
+.form-textarea:hover {
+    border-color: var(--gray-300);
+}
+
+.form-input::placeholder {
+    color: var(--gray-400);
+}
+
+/* Select Styling */
+.form-select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%233E4C59' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right var(--space-4) center;
+    background-size: 12px;
+    padding-right: calc(var(--space-4) * 2.5);
+    appearance: none;
+}
+
+/* Form Help Text */
+.form-help {
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+    margin-top: var(--space-1);
+    font-style: italic;
+    font-weight: 500;
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: flex-end;
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 2px solid var(--gray-100);
+}
+
+/* Buttons - Matching view_students.php */
+.btn {
+    padding: var(--space-3) var(--space-5);
+    border: none;
+    border-radius: var(--radius-lg);
+    font-size: var(--text-base);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-family: 'Poppins', sans-serif;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--asj-green-500), var(--asj-green-600));
+    color: white;
+    box-shadow: var(--shadow-md);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, var(--asj-green-600), var(--asj-green-700));
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+    background: var(--neutral-200);
+    color: var(--neutral-700);
+    border: 2px solid var(--neutral-300);
+}
+
+.btn-secondary:hover {
+    background: var(--neutral-300);
+    border-color: var(--neutral-400);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--error), var(--error-dark));
+    color: white;
+    box-shadow: var(--shadow-md);
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, var(--error-dark), #b91c1c);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, var(--warning), var(--warning-dark));
+    color: white;
+    box-shadow: var(--shadow-md);
+}
+
+.btn-warning:hover {
+    background: linear-gradient(135deg, var(--warning-dark), #b45309);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--success), var(--success-dark));
+    color: white;
+    box-shadow: var(--shadow-md);
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, var(--success-dark), #047857);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Info Card */
+.info-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-6);
+    margin-bottom: var(--space-8);
+    border: 1px solid var(--gray-200);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.info-item label {
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.info-item span {
+    font-size: var(--text-base);
+    color: var(--gray-900);
+    font-weight: 500;
+}
+
+/* Quick Actions */
+.quick-actions-section {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 2px solid var(--gray-100);
+}
+
+.quick-actions-title {
+    font-size: var(--text-xl);
+    color: var(--gray-900);
+    margin-bottom: var(--space-4);
+    font-weight: 700;
+}
+
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+/* Card Actions */
+.card-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+/* Alerts - Matching view_students.php */
+.alert {
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+    border: 2px solid;
+}
+
+.alert-icon {
+    font-size: var(--text-xl);
+    flex-shrink: 0;
+}
+
+.alert-content {
+    flex: 1;
+    font-size: var(--text-sm);
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+.alert-success {
+    background: var(--success-light);
+    border-color: var(--success);
+    color: var(--success-dark);
+}
+
+.alert-success .alert-icon {
+    color: var(--success);
+}
+
+.alert-error {
+    background: var(--error-light);
+    border-color: var(--error);
+    color: var(--error-dark);
+}
+
+.alert-error .alert-icon {
+    color: var(--error);
+}
+
+.alert-warning {
+    background: var(--warning-light);
+    border-color: var(--warning);
+    color: var(--warning-dark);
+}
+
+.alert-warning .alert-icon {
+    color: var(--warning);
+}
+
+.alert-info {
+    background: var(--info-light);
+    border-color: var(--info);
+    color: var(--info-dark);
+}
+
+.alert-info .alert-icon {
+    color: var(--info);
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: var(--space-4);
+}
+
+.modal-container {
+    background: white;
+    border-radius: var(--radius-2xl);
+    max-width: 500px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-2xl);
+}
+
+/* Responsive Design - Matching view_students.php breakpoints */
+@media (max-width: 992px) {
+    .form-card-header {
+        flex-direction: column;
+        gap: var(--space-4);
+        align-items: flex-start;
+    }
+    
+    .card-actions {
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .form-grid.two-col,
+    .form-grid.three-col {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-card-body {
+        padding: var(--space-5);
+    }
+    
+    .form-card-header {
+        padding: var(--space-4);
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .form-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .action-buttons .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .info-card {
+        padding: var(--space-5);
+    }
+}
+
+@media (max-width: 480px) {
+    .form-card-body {
+        padding: var(--space-4);
+    }
+    
+    .form-card-header {
+        padding: var(--space-3);
+    }
+    
+    .info-card {
+        padding: var(--space-4);
+    }
+    
+    .form-card-title {
+        font-size: var(--text-lg);
+    }
+    
+    .form-card-title i {
+        width: 32px;
+        height: 32px;
+        font-size: var(--text-base);
+    }
+}
+
+/* Animation - Matching view_students.php */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

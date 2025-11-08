@@ -1,4 +1,4 @@
-    <?php
+<?php
 /**
  * Simple Time In / Time Out Attendance System
  * - First scan of the day = Time In
@@ -129,80 +129,98 @@ function generateEmailTemplate($emailConfig, $student, $type, $details) {
     $studentName = trim($student['first_name'] . ' ' . ($student['middle_name'] ?? '') . ' ' . $student['last_name']);
     $statusColor = ($type === 'time_in') ? '#4CAF50' : '#FF9800';
     $statusText = ($type === 'time_in') ? 'Arrived at School' : 'Left School';
-    $icon = ($type === 'time_in') ? '🟢' : '🔴';
-    
-    return '
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; }
-            .status-badge { display: inline-block; padding: 12px 24px; background: ' . $statusColor . '; color: white; border-radius: 25px; font-weight: bold; margin: 15px 0; font-size: 16px; }
-            .details { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
-            .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #ddd; }
-            .detail-row:last-child { border-bottom: none; }
-            .label { font-weight: bold; color: #555; }
-            .value { color: #333; font-weight: 600; }
-            .footer { background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #777; border-radius: 0 0 10px 10px; }
-            .note { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>' . $icon . ' Attendance Alert</h1>
-                <p>' . htmlspecialchars($emailConfig['school_name']) . '</p>
-            </div>
-            <div class="content">
-                <h2>Dear Parent/Guardian,</h2>
-                <p>This is an automated notification regarding your child\'s attendance today.</p>
-                
-                <div class="status-badge">' . htmlspecialchars($statusText) . '</div>
-                
-                <div class="details">
-                    <div class="detail-row">
-                        <span class="label">Student Name:</span>
-                        <span class="value">' . htmlspecialchars($studentName) . '</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="label">LRN:</span>
-                        <span class="value">' . htmlspecialchars($student['lrn']) . '</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="label">Section:</span>
-                        <span class="value">' . htmlspecialchars($student['class']) . '</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="label">Date:</span>
-                        <span class="value">' . htmlspecialchars($details['date']) . '</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="label">' . ($type === 'time_in' ? 'Time In' : 'Time Out') . ':</span>
-                        <span class="value">' . htmlspecialchars($details['time']) . '</span>
-                    </div>
-                </div>
-                
-                <div class="note">
-                    <strong>📌 Note:</strong> This is an automated notification from the school attendance system. 
-                    If you have any concerns or questions, please contact the school administration.
-                </div>
-            </div>
-            <div class="footer">
-                <p><strong>' . htmlspecialchars($emailConfig['school_name']) . '</strong><br>
-                ' . htmlspecialchars($emailConfig['school_address']) . '</p>
-                <p>For inquiries: ' . htmlspecialchars($emailConfig['support_email']) . '</p>
-                <p style="margin-top: 15px; font-size: 11px; color: #999;">
-                    This is an automated message. Please do not reply to this email.
-                </p>
-            </div>
-        </div>
-    </body>
-    </html>';
+        // SVG icons (inline for email compatibility)
+        $svgCheck = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#4CAF50"/><path d="M7 13l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        $svgExit = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#FF9800"/><path d="M10 8l4 4-4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 12H6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        $svgClock = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 7v6l4 2" stroke="#666" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="#666" stroke-width="1.5"/></svg>';
+        $svgUser = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="#4CAF50" stroke-width="1.5"/></svg>';
+        $svgDoc = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        $svgMap = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 10c0 6-9 11-9 11S3 16 3 10a9 9 0 1118 0z" stroke="#666" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="10" r="2" fill="#666"/></svg>';
+
+        $badge = ($type === 'time_in') ? $svgCheck : $svgExit;
+
+        // Timestamp display (use details if provided)
+        $displayDate = htmlspecialchars($details['date'] ?? date('F j, Y'));
+        $displayTime = htmlspecialchars($details['time'] ?? date('g:i A'));
+
+        // Build HTML email (table-based, inline CSS)
+        return '<!DOCTYPE html>' .
+        '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' .
+        '</head><body style="margin:0;padding:0;background-color:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#333;">' .
+        '<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f5f5f5;padding:24px 0;">' .
+        '<tr><td align="center">' .
+        '<table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,0.08);">' .
+        // Header with Logo on Left
+        '<tr><td style="background:linear-gradient(135deg,#4CAF50 0%,#388E3C 100%);padding:24px 30px;">' .
+            '<table width="100%" cellpadding="0" cellspacing="0" role="presentation">' .
+                '<tr>' .
+                    // Logo Column
+                    '<td style="width:80px;vertical-align:middle;">' .
+                        '<div style="width:70px;height:70px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.15);">' .
+                            '<img src="' . htmlspecialchars($emailConfig['base_url'] . '/assets/asj-logo.png') . '" alt="ASJ Logo" width="55" style="display:block;">' .
+                        '</div>' .
+                    '</td>' .
+                    // School Info Column
+                    '<td style="vertical-align:middle;padding-left:20px;">' .
+                        '<h1 style="margin:0 0 6px;color:#fff;font-size:19px;font-weight:700;line-height:1.3;letter-spacing:-0.3px;">' . htmlspecialchars($emailConfig['school_name']) . '</h1>' .
+                        '<p style="margin:0;color:rgba(255,255,255,0.92);font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:0.8px;">Attendance Monitoring System</p>' .
+                    '</td>' .
+                '</tr>' .
+            '</table>' .
+        '</td></tr>' .
+        // Badge and summary
+        '<tr><td style="padding:24px 20px 8px;text-align:center;">' .
+            '<div style="display:inline-block;margin-bottom:12px;">' . $badge . '</div>' .
+            '<h2 style="margin:8px 0 6px;color:' . $statusColor . ';font-size:18px;font-weight:700;">' . htmlspecialchars($statusText) . '</h2>' .
+            '<p style="margin:0;color:#666;font-size:13px;">' . $displayDate . ' &nbsp;•&nbsp; ' . $displayTime . '</p>' .
+        '</td></tr>' .
+        // Student card
+        '<tr><td style="padding:18px 20px 0;">' .
+            '<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-radius:8px;background:#fbfcfd;border:1px solid #eef2f6;">' .
+                '<tr><td style="padding:16px 16px;border-left:6px solid #4CAF50;">' .
+                    '<table width="100%" cellpadding="0" cellspacing="0" role="presentation">' .
+                        '<tr><td style="vertical-align:top;padding-bottom:10px;">' .
+                            '<div style="display:flex;align-items:center;gap:12px;">' .
+                                '<div style="width:44px;height:44px;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,0.06);">' . $svgUser . '</div>' .
+                                '<div>' .
+                                    '<div style="font-size:14px;color:#888;text-transform:uppercase;letter-spacing:0.6px;font-weight:600;">Student</div>' .
+                                    '<div style="font-size:18px;color:#222;font-weight:700;margin-top:4px;">' . htmlspecialchars($studentName) . '</div>' .
+                                '</div>' .
+                            '</div>' .
+                        '</td></tr>' .
+                        '<tr><td style="padding-top:6px;">' .
+                            '<table width="100%" cellpadding="6" cellspacing="0" role="presentation">' .
+                                '<tr><td style="width:30%;font-size:12px;color:#666;">' . $svgDoc . ' <span style="margin-left:6px;">LRN</span></td><td style="text-align:right;font-weight:600;color:#222;">' . htmlspecialchars($student['lrn']) . '</td></tr>' .
+                                '<tr><td style="width:30%;font-size:12px;color:#666;">' . $svgMap . ' <span style="margin-left:6px;">Section</span></td><td style="text-align:right;font-weight:600;color:#222;">' . htmlspecialchars($student['class']) . '</td></tr>' .
+                            '</table>' .
+                        '</td></tr>' .
+                    '</table>' .
+                '</td></tr>' .
+            '</table>' .
+        '</td></tr>' .
+        // Details table
+        '<tr><td style="padding:18px 20px 20px;">' .
+            '<table width="100%" cellpadding="10" cellspacing="0" role="presentation" style="border:1px solid #eef2f6;border-radius:8px;">' .
+                '<tr style="background:#fafbfc;color:#666;font-size:12px;text-transform:uppercase;font-weight:700;">' .
+                    '<td style="padding:10px 12px;">Action</td><td style="padding:10px 12px;text-align:right;">' . htmlspecialchars($statusText) . '</td>' .
+                '</tr>' .
+                '<tr>' .
+                    '<td style="padding:10px 12px;color:#666;font-size:12px;">Timestamp</td><td style="padding:10px 12px;text-align:right;font-weight:600;color:#222;">' . $displayDate . ' • ' . $displayTime . '</td>' .
+                '</tr>' .
+            '</table>' .
+        '</td></tr>' .
+        // Footer
+        '<tr><td style="background:#f9fafb;padding:22px 20px;border-top:1px solid #eef2f6;text-align:center;color:#666;font-size:12px;">' .
+            '<div style="font-weight:700;color:#222;">' . htmlspecialchars($emailConfig['school_name']) . '</div>' .
+            '<div style="margin-top:6px;">' . htmlspecialchars($emailConfig['school_address']) . '</div>' .
+            '<div style="margin-top:6px;">Email: <a href="mailto:' . htmlspecialchars($emailConfig['support_email']) . '" style="color:#4CAF50;text-decoration:none;">' . htmlspecialchars($emailConfig['support_email']) . '</a></div>' .
+            '<div style="margin-top:10px;color:#999;font-size:11px;">This is an automated message from the ASJ Attendance Monitoring System. Please do not reply to this email.</div>' .
+            '<div style="margin-top:8px;color:#bbb;font-size:11px;">&copy; ' . date('Y') . ' ' . htmlspecialchars($emailConfig['school_name']) . '. All rights reserved.</div>' .
+        '</td></tr>' .
+        '</table>' .
+        '</td></tr>' .
+        '</table>' .
+        '</body></html>';
 }
 
 /**

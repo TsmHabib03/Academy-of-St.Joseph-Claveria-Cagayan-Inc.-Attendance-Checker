@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="https://unpkg.com/aos@2.3.1/dist/aos.css">
     
     <!-- ASJ Theme CSS -->
-    <link rel="stylesheet" href="css/asj-theme.css">
+    <link rel="stylesheet" href="css/asj-theme.css?v=3.0">
 
 </head>
 <body>
@@ -155,7 +155,7 @@
         <div class="container">
             <div class="section-header" data-aos="fade-up">
                 <h2 class="section-title">Our Core Values</h2>
-                <p class="section-subtitle">I.S.E.E. - Guiding principles of the Josephites</p>
+                <p class="section-subtitle">Guiding principles of the Josephites</p>
             </div>
             
             <div class="values-grid">
@@ -178,6 +178,76 @@
                     <i class="fas fa-praying-hands"></i>
                     <h4>Evangelization</h4>
                     <p>Spreading faith and Catholic values</p>
+                </div>
+                <div class="value-card" data-aos="fade-up" data-aos-delay="400">
+                    <i class="fas fa-dove"></i>
+                    <h4>Peace & Justice</h4>
+                    <p>Promoting harmony and fairness for all</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Vision, Mission & Goals Section -->
+    <section class="vmg-section">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <h2 class="section-title">Vision, Mission & Goals</h2>
+                <p class="section-subtitle">Our commitment to excellence and service</p>
+            </div>
+            
+            <div class="vmg-grid">
+                <!-- Vision Card -->
+                <div class="vmg-card vmg-vision" data-aos="fade-up" data-aos-delay="0">
+                    <div class="vmg-card-icon">
+                        <i class="fas fa-eye"></i>
+                    </div>
+                    <h4>Vision</h4>
+                    <p>Academy of St. Joseph: Witness to the Word.</p>
+                </div>
+
+                <!-- Mission Card -->
+                <div class="vmg-card vmg-mission" data-aos="fade-up" data-aos-delay="100">
+                    <div class="vmg-card-icon">
+                        <i class="fas fa-bullseye"></i>
+                    </div>
+                    <h4>Mission</h4>
+                    <div class="vmg-list">
+                        <div class="vmg-list-item">
+                            <i class="fas fa-check-circle"></i>
+                            <p><strong>As members of the institution,</strong> we are committed to the integral human formation and excellence in instruction.</p>
+                        </div>
+                        <div class="vmg-list-item">
+                            <i class="fas fa-check-circle"></i>
+                            <p><strong>As a Catholic school,</strong> we are committed to be Christ-centered in the Catholic tradition.</p>
+                        </div>
+                        <div class="vmg-list-item">
+                            <i class="fas fa-check-circle"></i>
+                            <p><strong>As an SVD school,</strong> we are committed to prophetic dialogue through mission awareness, Bible apostolate, communication, justice and peace and integrity of creation.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Goals Card -->
+                <div class="vmg-card vmg-goals" data-aos="fade-up" data-aos-delay="200">
+                    <div class="vmg-card-icon">
+                        <i class="fas fa-flag-checkered"></i>
+                    </div>
+                    <h4>Goals</h4>
+                    <div class="vmg-list">
+                        <div class="vmg-list-item">
+                            <i class="fas fa-star"></i>
+                            <p><strong>As an Academy,</strong> we aim to create a culture which places a high quality on the physical, spiritual, academic, character building, social affective and apostolic development of the students: service and values oriented achievers, and globally competitive Josephites.</p>
+                        </div>
+                        <div class="vmg-list-item">
+                            <i class="fas fa-star"></i>
+                            <p><strong>As a Catholic school,</strong> we aim to inculcate in our students and personnel Catholic education that is holistic, social, well-rounded and developmental in the context of the local church.</p>
+                        </div>
+                        <div class="vmg-list-item">
+                            <i class="fas fa-star"></i>
+                            <p><strong>As an SVD school,</strong> we aim to integrate prophetic dialogue and the SVD characteristic dimensions in the curricular and extra-curricular activities in the school; to develop our SVD spirituality and charism and share it with other schools in Cagayan.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -234,7 +304,7 @@
             
             <div class="footer-bottom">
                 <p>&copy; 2025 Academy of St. Joseph, Claveria Cagayan Inc. All Rights Reserved.</p>
-                <p>Powered by <a href="#">AttendEase</a> v2.0</p>
+                
             </div>
         </div>
     </footer>

@@ -458,7 +458,7 @@ body {
 
 .values-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: var(--spacing-md);
     margin-top: var(--spacing-lg);
 }
@@ -501,6 +501,159 @@ body {
     font-size: 0.875rem;
     color: var(--asj-text-secondary);
     line-height: 1.5;
+}
+
+/* ============================================
+   Vision, Mission & Goals Section
+   ============================================ */
+
+.vmg-section {
+    padding: var(--spacing-xxl) 0;
+    background: var(--asj-light-bg);
+}
+
+.vmg-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+}
+
+.vmg-card {
+    background: var(--asj-white);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-base);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    border-top: 4px solid transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+.vmg-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, transparent 0%, rgba(76, 175, 80, 0.03) 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.vmg-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-lg);
+}
+
+.vmg-card:hover::before {
+    opacity: 1;
+}
+
+/* Vision Card - Green */
+.vmg-vision {
+    border-top-color: var(--asj-green-primary);
+}
+
+.vmg-vision .vmg-card-icon {
+    background: linear-gradient(135deg, var(--asj-green-primary), var(--asj-green-medium));
+}
+
+/* Mission Card - Blue-Green */
+.vmg-mission {
+    border-top-color: #2196F3;
+}
+
+.vmg-mission .vmg-card-icon {
+    background: linear-gradient(135deg, #2196F3, #42A5F5);
+}
+
+/* Goals Card - Gold */
+.vmg-goals {
+    border-top-color: var(--asj-yellow-primary);
+}
+
+.vmg-goals .vmg-card-icon {
+    background: linear-gradient(135deg, var(--asj-yellow-primary), var(--asj-gold));
+}
+
+.vmg-card-icon {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--spacing-md);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+.vmg-card-icon i {
+    font-size: 2rem;
+    color: var(--asj-white);
+}
+
+.vmg-card h4 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--asj-green-dark);
+    margin-bottom: var(--spacing-md);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.vmg-card > p {
+    font-size: 1.125rem;
+    color: var(--asj-text-primary);
+    line-height: 1.8;
+    font-weight: 500;
+    font-style: italic;
+}
+
+.vmg-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    width: 100%;
+}
+
+.vmg-list-item {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: flex-start;
+}
+
+.vmg-list-item i {
+    font-size: 1.125rem;
+    color: var(--asj-green-primary);
+    margin-top: 4px;
+    flex-shrink: 0;
+}
+
+.vmg-mission .vmg-list-item i {
+    color: #2196F3;
+}
+
+.vmg-goals .vmg-list-item i {
+    color: var(--asj-yellow-primary);
+}
+
+.vmg-list-item p {
+    font-size: 1rem;
+    color: var(--asj-text-primary);
+    line-height: 1.7;
+    margin: 0;
+}
+
+.vmg-list-item strong {
+    color: var(--asj-green-dark);
+    font-weight: 700;
 }
 
 /* ============================================
@@ -584,6 +737,10 @@ body {
     .values-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+    
+    .vmg-block {
+        padding: var(--spacing-lg);
+    }
 }
 
 @media (max-width: 768px) {
@@ -643,6 +800,27 @@ body {
     .values-grid {
         grid-template-columns: 1fr;
         gap: var(--spacing-sm);
+    }
+    
+    /* Vision, Mission & Goals */
+    .vision-mission-section {
+        padding: var(--spacing-lg) 0;
+    }
+    
+    .vmg-block {
+        padding: var(--spacing-md);
+    }
+    
+    .vmg-title {
+        font-size: 1.5rem;
+    }
+    
+    .vmg-content {
+        font-size: 1rem;
+    }
+    
+    .vmg-content-list p {
+        font-size: 0.9375rem;
     }
     
     /* Footer */
