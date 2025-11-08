@@ -34,10 +34,12 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
  * This function sends a formatted HTML email alert to notify about student attendance.
  * The email includes student details, status (IN or OUT), and timestamp.
  * 
- * @param string $studentName   Full name of the student
- * @param string $studentEmail  Email address where notification will be sent
- * @param string $status        Attendance status: "IN" or "OUT"
- * @param string $timestamp     Date and time of the attendance scan (e.g., "2024-01-15 08:30:00")
+ * @param string $studentName    Full name of the student
+ * @param string $studentEmail   Email address where notification will be sent
+ * @param string $status         Attendance status: "IN" or "OUT"
+ * @param string $timestamp      Date and time of the attendance scan (e.g., "2024-01-15 08:30:00")
+ * @param string $studentLRN     Student's Learner Reference Number (optional)
+ * @param string $studentSection Student's section (optional)
  * 
  * @return bool Returns true if email sent successfully, false on failure
  * 
@@ -47,7 +49,9 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
  *     "Juan Dela Cruz",
  *     "parent@example.com",
  *     "IN",
- *     "2024-01-15 08:30:00"
+ *     "2024-01-15 08:30:00",
+ *     "123456789012",
+ *     "Grade 10 - A"
  * );
  * 
  * if ($result) {
@@ -56,7 +60,7 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
  *     echo "Failed to send email notification.";
  * }
  */
-function sendAttendanceEmailNotification($studentName, $studentEmail, $status, $timestamp) {
+function sendAttendanceEmailNotification($studentName, $studentEmail, $status, $timestamp, $studentLRN = '', $studentSection = '') {
     try {
         // Validate input parameters
         if (empty($studentName) || empty($studentEmail) || empty($status) || empty($timestamp)) {
@@ -132,158 +136,47 @@ function sendAttendanceEmailNotification($studentName, $studentEmail, $status, $
         
         // Determine status text and colors
         $statusText = ($status === 'IN') ? 'Time IN' : 'Time OUT';
-        $statusColor = ($status === 'IN') ? '#4CAF50' : '#FF5722';
-        $statusIcon = ($status === 'IN') ? '✅' : '🚪';
+        $statusColor = ($status === 'IN') ? '#15803D' : '#DC2626'; // Green for IN, Red for OUT
+        $statusIconPath = ($status === 'IN') 
+            ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' // Check circle
+            : 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1'; // Logout
         
         // Email subject
         $mail->Subject = "Attendance Alert: " . htmlspecialchars($studentName) . " has " . $statusText;
         
-        // HTML email body
-        $mail->Body = '
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Attendance Notification</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
+        // Load the HTML email template
+        $templatePath = __DIR__ . '/email_template.html';
+        if (!file_exists($templatePath)) {
+            error_log("Email Notification Error: Template file not found - " . $templatePath);
+            return false;
         }
-        .email-container {
-            max-width: 600px;
-            margin: 20px auto;
-            background: #ffffff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 600;
-        }
-        .content {
-            padding: 30px;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 10px 20px;
-            background: ' . $statusColor . ';
-            color: white;
-            border-radius: 25px;
-            font-weight: bold;
-            font-size: 16px;
-            margin: 15px 0;
-        }
-        .details-box {
-            background: #f9f9f9;
-            border-left: 4px solid ' . $statusColor . ';
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }
-        .detail-row {
-            margin: 10px 0;
-            display: flex;
-            justify-content: space-between;
-        }
-        .detail-label {
-            font-weight: bold;
-            color: #555;
-        }
-        .detail-value {
-            color: #333;
-        }
-        .note-box {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 4px;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        .note-box p {
-            margin: 0;
-            color: #856404;
-        }
-        .footer {
-            background: #f4f4f4;
-            padding: 20px;
-            text-align: center;
-            font-size: 12px;
-            color: #777;
-        }
-        @media only screen and (max-width: 600px) {
-            .email-container {
-                margin: 0;
-                border-radius: 0;
-            }
-            .detail-row {
-                flex-direction: column;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="email-container">
-        <div class="header">
-            <h1>' . $statusIcon . ' Attendance Alert</h1>
-            <p>Academy of St. Joseph Attendance System</p>
-        </div>
         
-        <div class="content">
-            <h2>Dear Parent/Guardian,</h2>
-            <p>This is an automated attendance notification for your child.</p>
-            
-            <div class="status-badge">' . $statusText . '</div>
-            
-            <div class="details-box">
-                <div class="detail-row">
-                    <span class="detail-label">Student\'s Name:</span>
-                    <span class="detail-value">' . htmlspecialchars($studentName) . '</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Status:</span>
-                    <span class="detail-value">' . $statusText . '</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Date:</span>
-                    <span class="detail-value">' . $formattedDate . '</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Time:</span>
-                    <span class="detail-value">' . $formattedTime . '</span>
-                </div>
-            </div>
-            
-            <div class="note-box">
-                <p><strong>📌 Note:</strong> This is an automated attendance notification. Please do not reply to this email.</p>
-            </div>
-        </div>
+        $htmlTemplate = file_get_contents($templatePath);
         
-        <div class="footer">
-            <p><strong>Academy of St. Joseph Claveria, Cagayan Inc.</strong></p>
-            <p>Automated Attendance System</p>
-            <p style="margin-top: 10px;">© ' . date('Y') . ' All rights reserved.</p>
-        </div>
-    </div>
-</body>
-</html>';
+        // Replace placeholders with actual values
+        $replacements = [
+            '{{STUDENT_NAME}}' => htmlspecialchars($studentName),
+            '{{STUDENT_LRN}}' => htmlspecialchars($studentLRN ?: 'N/A'),
+            '{{STUDENT_SECTION}}' => htmlspecialchars($studentSection ?: 'N/A'),
+            '{{STATUS_TEXT}}' => $statusText,
+            '{{STATUS_COLOR}}' => $statusColor,
+            '{{STATUS_ICON_PATH}}' => $statusIconPath,
+            '{{FORMATTED_DATE}}' => $formattedDate,
+            '{{FORMATTED_TIME}}' => $formattedTime,
+            '{{YEAR}}' => date('Y')
+        ];
+        
+        $mail->Body = str_replace(
+            array_keys($replacements),
+            array_values($replacements),
+            $htmlTemplate
+        );
         
         // Plain text alternative for email clients that don't support HTML
         $mail->AltBody = "ATTENDANCE ALERT\n\n" .
                          "Student's Name: " . $studentName . "\n" .
+                         ($studentLRN ? "LRN: " . $studentLRN . "\n" : "") .
+                         ($studentSection ? "Section: " . $studentSection . "\n" : "") .
                          "Status: " . $statusText . "\n" .
                          "Date and Time: " . $formattedDateTime . "\n\n" .
                          "This is an automated attendance notification.\n" .

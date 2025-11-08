@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Notification</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            margin: 0;
+            padding: 0;
+            background-color: #F9FAFB;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .header {
+            background: linear-gradient(135deg, #14532D 0%, #166534 100%);
+            color: white;
+            padding: 35px 30px;
+            text-align: center;
+            border-bottom: 4px solid #FACC15;
+        }
+        .logo-section {
+            margin-bottom: 15px;
+        }
+        .logo-placeholder {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 15px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+        .logo-text {
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .header p {
+            margin: 8px 0 0;
+            font-size: 14px;
+            opacity: 0.95;
+            font-weight: 400;
+        }
+        .icon-svg {
+            width: 24px;
+            height: 24px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .content {
+            padding: 35px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            font-weight: 600;
+            color: #14532D;
+            margin: 0 0 15px;
+        }
+        .intro-text {
+            color: #6b7280;
+            margin: 0 0 25px;
+            font-size: 15px;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: {{STATUS_COLOR}};
+            color: white;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 16px;
+            margin: 0 0 25px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .status-badge svg {
+            width: 20px;
+            height: 20px;
+        }
+        .details-box {
+            background: #F9FAFB;
+            border-left: 4px solid {{STATUS_COLOR}};
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        .detail-row {
+            margin: 12px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .detail-label svg {
+            width: 18px;
+            height: 18px;
+            color: #14532D;
+        }
+        .detail-value {
+            color: #1f2937;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .note-box {
+            background: #FEF3C7;
+            border: 2px solid #FACC15;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 25px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .note-box svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            margin-top: 2px;
+            color: #92400E;
+        }
+        .note-box p {
+            margin: 0;
+            color: #92400E;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .footer {
+            background: #F3F4F6;
+            padding: 25px 30px;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+        }
+        .footer-divider {
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, #14532D, #FACC15);
+            margin: 0 auto 15px;
+            border-radius: 2px;
+        }
+        .footer strong {
+            color: #14532D;
+            font-size: 14px;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                margin: 0;
+                border-radius: 0;
+            }
+            .header {
+                padding: 25px 20px;
+            }
+            .content {
+                padding: 25px 20px;
+            }
+            .detail-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+            .footer {
+                padding: 20px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="logo-section">
+                <div class="logo-placeholder">
+                    <span class="logo-text">ASJ</span>
+                </div>
+            </div>
+            <h1>
+                <svg class="icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                </svg>
+                Attendance Alert
+            </h1>
+            <p>Academy of St. Joseph Attendance System</p>
+        </div>
+        
+        <div class="content">
+            <h2 class="greeting">Dear Parent/Guardian,</h2>
+            <p class="intro-text">This is an automated attendance notification for your child.</p>
+            
+            <div class="status-badge">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{STATUS_ICON_PATH}}"></path>
+                </svg>
+                {{STATUS_TEXT}}
+            </div>
+            
+            <div class="details-box">
+                <div class="detail-row">
+                    <span class="detail-label">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        Student's Name:
+                    </span>
+                    <span class="detail-value">{{STUDENT_NAME}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"></path>
+                        </svg>
+                        LRN:
+                    </span>
+                    <span class="detail-value">{{STUDENT_LRN}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                        </svg>
+                        Section:
+                    </span>
+                    <span class="detail-value">{{STUDENT_SECTION}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                        </svg>
+                        Status:
+                    </span>
+                    <span class="detail-value">{{STATUS_TEXT}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        Date:
+                    </span>
+                    <span class="detail-value">{{FORMATTED_DATE}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Time:
+                    </span>
+                    <span class="detail-value">{{FORMATTED_TIME}}</span>
+                </div>
+            </div>
+            
+            <div class="note-box">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p><strong>Note:</strong> This is an automated attendance notification. Please do not reply to this email.</p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div class="footer-divider"></div>
+            <p><strong>Academy of St. Joseph Claveria, Cagayan Inc.</strong></p>
+            <p>Automated Attendance System</p>
+            <p style="margin-top: 12px;">© {{YEAR}} All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

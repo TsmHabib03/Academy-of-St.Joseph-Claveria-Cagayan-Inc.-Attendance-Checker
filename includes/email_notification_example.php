@@ -75,27 +75,50 @@ if ($result3) {
 }
 
 // ============================================================
-// EXAMPLE 4: Integration with attendance system
+// EXAMPLE 4: Using new LRN and Section parameters
 // ============================================================
-echo "Example 4: Integration example...\n\n";
+echo "Example 4: Using new LRN and Section parameters...\n";
+
+$result4 = sendAttendanceEmailNotification(
+    "Carlos Mendoza",              // Student's name
+    "parent3@example.com",         // Parent/guardian email
+    "IN",                          // Status: IN or OUT
+    "2024-01-15 07:45:00",        // Timestamp
+    "987654321098",                // Student LRN (new parameter)
+    "Grade 11 - B"                 // Student Section (new parameter)
+);
+
+if ($result4) {
+    echo "✅ Notification with LRN and Section sent successfully!\n\n";
+} else {
+    echo "❌ Failed to send notification.\n\n";
+}
+
+// ============================================================
+// EXAMPLE 5: Integration with attendance system
+// ============================================================
+echo "Example 5: Integration example...\n\n";
 
 // Simulated student data from database
 $studentData = [
     'full_name' => 'Anna Cruz',
     'email' => 'parent.anna@example.com',
-    'lrn' => '123456789012'
+    'lrn' => '123456789012',
+    'section' => 'Grade 10 - A'
 ];
 
 // Simulated attendance data
 $attendanceStatus = 'IN';  // This would come from your QR scan logic
 $scanTimestamp = date('Y-m-d H:i:s');
 
-// Send notification
+// Send notification with all details
 $emailSent = sendAttendanceEmailNotification(
     $studentData['full_name'],
     $studentData['email'],
     $attendanceStatus,
-    $scanTimestamp
+    $scanTimestamp,
+    $studentData['lrn'],      // Include LRN
+    $studentData['section']   // Include Section
 );
 
 if ($emailSent) {
@@ -106,9 +129,9 @@ if ($emailSent) {
 }
 
 // ============================================================
-// EXAMPLE 5: Error handling
+// EXAMPLE 6: Error handling
 // ============================================================
-echo "\nExample 5: Demonstrating error handling...\n";
+echo "\nExample 6: Demonstrating error handling...\n";
 
 // Example with invalid email
 $result5 = sendAttendanceEmailNotification(
@@ -155,15 +178,19 @@ HOW TO INTEGRATE WITH YOUR ATTENDANCE SYSTEM:
    // Get student details from database
    $studentName = $student['first_name'] . ' ' . $student['last_name'];
    $parentEmail = $student['email'];  // Or parent_email field
+   $studentLRN = $student['lrn'];     // Student Learner Reference Number
+   $studentSection = $student['section'];  // Student Section
    $status = ($timeIn) ? 'IN' : 'OUT';
    $timestamp = date('Y-m-d H:i:s');
    
-   // Send email notification (non-blocking)
+   // Send email notification with full details (non-blocking)
    $emailResult = sendAttendanceEmailNotification(
        $studentName,
        $parentEmail,
        $status,
-       $timestamp
+       $timestamp,
+       $studentLRN,      // Optional: can be omitted if not available
+       $studentSection   // Optional: can be omitted if not available
    );
    
    // Log the result (optional)
@@ -172,6 +199,9 @@ HOW TO INTEGRATE WITH YOUR ATTENDANCE SYSTEM:
    } else {
        error_log("Email failed for: " . $parentEmail);
    }
+
+   // Backward compatible: Old function calls still work
+   // sendAttendanceEmailNotification($studentName, $parentEmail, $status, $timestamp);
 
 3. IMPORTANT: Don't let email failures affect attendance recording!
    - Always record attendance first
