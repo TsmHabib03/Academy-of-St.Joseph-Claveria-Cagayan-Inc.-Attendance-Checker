@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#006400">
     <meta name="description" content="AttendEase - Smart Attendance Management System for Academy of St. Joseph, Claveria Cagayan Inc. The Josephites: Integrity, Excellence, Service.">
-    <title>AttendEase - Academy of St. Joseph, Claveria | The Josephites</title>
+    <title>Academy of St. Joseph, Claveria | The Josephites</title>
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -179,11 +179,7 @@
                     <h4>Evangelization</h4>
                     <p>Spreading faith and Catholic values</p>
                 </div>
-                <div class="value-card" data-aos="fade-up" data-aos-delay="400">
-                    <i class="fas fa-dove"></i>
-                    <h4>Peace & Justice</h4>
-                    <p>Promoting harmony and fairness for all</p>
-                </div>
+                
             </div>
         </div>
     </section>
@@ -286,14 +282,6 @@
                     <div class="footer-info-item">
                         <i class="fas fa-qrcode"></i>
                         <a href="scan_attendance.php">Scan Attendance</a>
-                    </div>
-                    <div class="footer-info-item">
-                        <i class="fas fa-user-plus"></i>
-                        <a href="register_student.php">Register Student</a>
-                    </div>
-                    <div class="footer-info-item">
-                        <i class="fas fa-users"></i>
-                        <a href="view_students.php">View Students</a>
                     </div>
                     <div class="footer-info-item">
                         <i class="fas fa-shield-alt"></i>
