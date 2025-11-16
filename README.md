@@ -4,6 +4,26 @@ A comprehensive web-based attendance management system using QR code scanning te
 
 This system was developed as part of a research project to modernize and streamline the attendance tracking process at Academy of St. Joseph Claveria, Cagayan Inc., providing an efficient and accurate solution for monitoring student attendance through QR code technology.
 
+---
+
+## 🚀 Quick Start for Clients
+
+**📖 New to this system? Want to set it up on your computer for demo/testing?**
+
+👉 **[Click here for the Beginner-Friendly Setup Guide](SETUP_GUIDE.md)** 👈
+
+The setup guide includes:
+- ✅ Step-by-step instructions (no programming knowledge needed)
+- ✅ How to download and install XAMPP
+- ✅ Database setup with screenshots descriptions
+- ✅ Complete localhost configuration
+- ✅ Troubleshooting common issues
+- ✅ Quick reference URLs
+
+**For developers and technical users**, continue reading below for detailed documentation.
+
+---
+
 ## 🌟 Features
 
 ### Core Functionality
