@@ -121,7 +121,7 @@
                 </a>
 
                 <!-- Student Registration -->
-                <a href="register_student.php" class="feature-card" data-aos="fade-up" data-aos-delay="100">
+                <a href="#" class="feature-card" data-aos="fade-up" data-aos-delay="100">
                     <div class="feature-icon">
                         <i class="fas fa-user-plus"></i>
                     </div>
@@ -130,7 +130,7 @@
                 </a>
 
                 <!-- View Students -->
-                <a href="view_students.php" class="feature-card" data-aos="fade-up" data-aos-delay="200">
+                <a href="#" class="feature-card" data-aos="fade-up" data-aos-delay="200">
                     <div class="feature-icon">
                         <i class="fas fa-users"></i>
                     </div>
@@ -139,7 +139,7 @@
                 </a>
 
                 <!-- Admin Dashboard -->
-                <a href="admin/login.php" class="feature-card" data-aos="fade-up" data-aos-delay="300">
+                <a href="#" class="feature-card" data-aos="fade-up" data-aos-delay="300">
                     <div class="feature-icon">
                         <i class="fas fa-chart-line"></i>
                     </div>
