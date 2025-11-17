@@ -4,7 +4,50 @@
 
 ---
 
-## I. SYSTEM DEVELOPMENT PROCEDURE
+## I. GENERAL PROCEDURE - PRODUCT MAKING PROCEDURE
+### AttendEase Attendance System Development
+
+```mermaid
+flowchart TD
+    Start([Start: Product Development]) --> A[Create Database Schema<br/>MySQL Database Setup]
+    
+    A --> B[Add Wireframe and Elements<br/>UI/UX Design]
+    
+    B --> C[Run Initial Prototype<br/>Core System Testing]
+    
+    C --> D[Create Website<br/>for System Access]
+    
+    D --> E[Add Homepage, About<br/>and Contact Information]
+    
+    E --> F[Test Link Download<br/>QR Code & Reports]
+    
+    F --> G[Try User Interface<br/>and Treatment]
+    
+    G --> H[System Creation<br/>Complete Development]
+    
+    H --> I[System Monitoring<br/>Testing & QA]
+    
+    I --> J[Summarize and<br/>Conclusion]
+    
+    J --> End([End: System Launch])
+    
+    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style B fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style C fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style D fill:#E8F5E9,stroke:#388E3C,stroke-width:2px,color:#000
+    style E fill:#E8F5E9,stroke:#388E3C,stroke-width:2px,color:#000
+    style F fill:#FFF9C4,stroke:#F9A825,stroke-width:2px,color:#000
+    style G fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style H fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    style I fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    style J fill:#FFECB3,stroke:#FF6F00,stroke-width:2px,color:#000
+```
+
+---
+
+## II. SYSTEM DEVELOPMENT PROCEDURE
 
 ```mermaid
 flowchart TD
@@ -33,24 +76,24 @@ flowchart TD
     
     K --> End([End: System Launch])
     
-    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style B fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style D fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style E fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style F fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style G fill:#FCE4EC,stroke:#C2185B,stroke-width:2px
-    style H fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px
-    style I fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px
-    style J fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style K fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style B fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style D fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style E fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style F fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style G fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    style H fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style I fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style J fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style K fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
 ```
 
 ---
 
-## II. ATTENDANCE MARKING PROCEDURE
+## III. ATTENDANCE MARKING PROCEDURE
 
 ```mermaid
 flowchart TD
@@ -92,24 +135,24 @@ flowchart TD
     M --> End([End])
     U --> End
     
-    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style A fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style L fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style N fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style G fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style B fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style D fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style E fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style M fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style T fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
-    style U fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style A fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style L fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style N fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style G fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style B fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style D fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style E fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style M fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#000
+    style T fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+    style U fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
 ```
 
 ---
 
-## III. STUDENT REGISTRATION PROCEDURE
+## IV. STUDENT REGISTRATION PROCEDURE
 
 ```mermaid
 flowchart TD
@@ -145,26 +188,26 @@ flowchart TD
     
     N --> End([Registration Complete])
     
-    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style D fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style G fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style E fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style H fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style B fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style I fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style J fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style K fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style L fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style M fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
-    style N fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style D fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style G fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style E fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#000
+    style H fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#000
+    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style B fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style I fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style J fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style K fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style L fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style M fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+    style N fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
 ```
 
 ---
 
-## IV. ADMIN DASHBOARD WORKFLOW
+## V. ADMIN DASHBOARD WORKFLOW
 
 ```mermaid
 flowchart TD
@@ -204,22 +247,22 @@ flowchart TD
     R --> G
     M --> End([Session Ended])
     
-    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style B fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style H fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style C fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style D fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style E fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style F fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style G fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px
-    style R fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style B fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style H fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style C fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#000
+    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style D fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style E fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style F fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style G fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style R fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
 ```
 
 ---
 
-## V. REPORT GENERATION PROCEDURE
+## VI. REPORT GENERATION PROCEDURE
 
 ```mermaid
 flowchart TD
@@ -255,23 +298,23 @@ flowchart TD
     J --> End([Report Complete])
     O --> End
     
-    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style I fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style B fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style D fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style E fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style F fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style G fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style H fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px
-    style O fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style I fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style B fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style D fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style E fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style F fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style G fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style H fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style O fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
 ```
 
 ---
 
-## VI. DATA FLOW ARCHITECTURE
+## VII. DATA FLOW ARCHITECTURE
 
 ```mermaid
 flowchart LR
@@ -292,23 +335,23 @@ flowchart LR
     
     G --> L[Real-time Dashboard<br/>Chart.js Visualization]
     
-    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style B fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style D fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style E fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px
-    style F fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px
-    style G fill:#C8E6C9,stroke:#388E3C,stroke-width:3px
-    style H fill:#FFECB3,stroke:#F57F17,stroke-width:2px
-    style I fill:#FFECB3,stroke:#F57F17,stroke-width:2px
-    style J fill:#E1BEE7,stroke:#8E24AA,stroke-width:2px
-    style K fill:#E1BEE7,stroke:#8E24AA,stroke-width:2px
-    style L fill:#E1BEE7,stroke:#8E24AA,stroke-width:2px
+    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style C fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style B fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style D fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#000
+    style E fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style F fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style G fill:#C8E6C9,stroke:#388E3C,stroke-width:3px,color:#000
+    style H fill:#FFECB3,stroke:#F57F17,stroke-width:2px,color:#000
+    style I fill:#FFECB3,stroke:#F57F17,stroke-width:2px,color:#000
+    style J fill:#E1BEE7,stroke:#8E24AA,stroke-width:2px,color:#000
+    style K fill:#E1BEE7,stroke:#8E24AA,stroke-width:2px,color:#000
+    style L fill:#E1BEE7,stroke:#8E24AA,stroke-width:2px,color:#000
 ```
 
 ---
 
-## VII. SECURITY & AUTHENTICATION FLOW
+## VIII. SECURITY & AUTHENTICATION FLOW
 
 ```mermaid
 flowchart TD
@@ -354,19 +397,19 @@ flowchart TD
     P --> End
     S --> End
     
-    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
-    style A fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style G fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style J fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style O fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style R fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    style H fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style K fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style P fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style D fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
-    style M fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
-    style Q fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style End fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#000
+    style A fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style G fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style J fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style O fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style R fill:#FFF9C4,stroke:#F57F17,stroke-width:2px,color:#000
+    style H fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#000
+    style K fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#000
+    style P fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#000
+    style D fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+    style M fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+    style Q fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
 ```
 
 ---
