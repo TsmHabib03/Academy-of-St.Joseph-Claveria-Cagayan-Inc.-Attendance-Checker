@@ -48,7 +48,7 @@ if (!isset($_GET['token']) || empty(trim($_GET['token']))) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Reset Your Admin Password - Attendance Management System">
-    <meta name="theme-color" content="#667eea">
+    <meta name="theme-color" content="#4CAF50">
     <title>Reset Password - Admin Portal</title>
     
     <!-- Preload critical assets -->
@@ -110,7 +110,7 @@ if (!isset($_GET['token']) || empty(trim($_GET['token']))) {
                             Request New Reset Link
                         </span>
                     </a>
-                    <a href="login.php" style="display: block; margin-top: 15px; color: #667eea; text-decoration: none; font-weight: 500;">
+                    <a href="login.php" style="display: block; margin-top: 15px; color: #4CAF50; text-decoration: none; font-weight: 500;">
                         Back to Login
                     </a>
                 </div>

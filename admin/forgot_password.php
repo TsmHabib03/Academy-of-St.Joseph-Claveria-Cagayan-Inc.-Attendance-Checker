@@ -166,7 +166,7 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
         }
 
         .back-link:hover {
-            color: #667eea;
+            color: var(--asj-green-600, #43A047);
         }
 
         .back-link svg {

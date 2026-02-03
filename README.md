@@ -6,22 +6,60 @@ This system was developed as part of a research project to modernize and streaml
 
 ## 🌟 Features
 
-### Core Functionality
+### Core Functionality (v3.0)
+- **Multi-Role User System**: Support for Admin, Teacher, Staff, and Student roles with granular permissions
 - **LRN-based Student Management**: Uses official 11-13 digit Learner Reference Numbers as unique identifiers
+- **Teacher Attendance Tracking**: Separate attendance system for faculty with employee IDs
 - **Dual QR Code Scanning Systems**: 
   - Full-screen instant scanner for quick attendance marking
   - Manual attendance page with integrated QR scanner option
-- **Time In/Time Out Tracking**: Precise attendance recording with entry and exit times
+- **AM/PM Session Tracking**: Morning and afternoon attendance sessions with separate time slots
+- **Late Detection**: Automatic flagging when students/teachers arrive after scheduled time
 - **Section-based Organization**: Manage students by grade level and section names
 - **Real-time Dashboard**: Interactive admin dashboard with live statistics and charts
 - **Philippine Timezone Support**: Accurate time recording in Asia/Manila timezone
 
 ### Attendance Management
-- **Time In Recording**: Capture student arrival time with QR scan or manual entry
-- **Time Out Recording**: Log student departure time to complete attendance record
-- **Automatic Status Detection**: System determines if attendance record is complete or needs attention
-- **Duplicate Prevention**: Smart detection prevents multiple scans per day per student
-- **Email Notifications**: Configurable email alerts for attendance events
+- **Morning Session (AM)**: Track time-in and time-out for morning classes
+- **Afternoon Session (PM)**: Separate attendance for afternoon classes
+- **Late Arrival Flagging**: Automatic detection based on configurable schedules
+- **Configurable Schedules**: Set different time schedules per grade level or section
+- **Duplicate Prevention**: Smart detection prevents multiple scans per session per student
+- **SMS Notifications**: Configurable SMS alerts for late arrival or absence (Semaphore, Twilio, Vonage)
+
+### Teacher Management (NEW in v3.0)
+- **Teacher Registration**: Add teachers with Employee ID, department, and position
+- **QR Code Generation**: Automatic QR code for teacher attendance tracking
+- **Separate Attendance Records**: Teacher attendance tracked independently from students
+- **Department Organization**: Group teachers by department
+
+### Behavior Monitoring (NEW in v3.0)
+- **Attendance Pattern Analysis**: Automatic detection of problematic patterns
+- **Alert Types**: 
+  - Frequent Lateness Detection
+  - Consecutive Absences Alert
+  - Sudden Absence Warning
+  - Attendance Drop Monitoring
+- **Severity Levels**: Low, Medium, High, Critical alert classification
+- **Alert Acknowledgment**: Track resolution of behavior concerns
+
+### Achievement Badges (NEW in v3.0)
+- **Automatic Badge Awards**: Earn badges for attendance milestones
+- **Badge Types**:
+  - Perfect Attendance
+  - On-Time Streak
+  - Most Improved
+  - Early Bird
+  - Consistent Attendance
+- **Leaderboard**: View top students by points and badges
+- **Manual Awards**: Admin can manually award custom badges
+
+### SMS Notifications (NEW in v3.0)
+- **Multi-Gateway Support**: Semaphore (PH), Twilio, Vonage, Custom API
+- **Template Management**: Create and manage SMS templates
+- **Notification Types**: Late alerts, absence alerts, time-in/out confirmations
+- **Rate Limiting**: Prevent notification spam
+- **Delivery Logging**: Track all sent messages
 
 ### Admin Dashboard
 - **Real-time Statistics**: 
@@ -29,6 +67,7 @@ This system was developed as part of a research project to modernize and streaml
   - Active sections count
   - Time In records
   - Total attendance records
+  - Pending behavior alerts
 - **Weekly Attendance Trends**: Interactive bar chart showing 7-day Present vs Absent comparison
 - **Section-wise Analysis**: Donut chart displaying today's attendance distribution by section
 - **Recent Activity Feed**: Live list of latest Time In/Time Out records with student details
@@ -42,16 +81,19 @@ This system was developed as part of a research project to modernize and streaml
 - **Section Reports**: Generate attendance reports filtered by section
 
 ### Student Management
-- **Comprehensive Registration**: Capture first name, middle name, last name, gender, email, class, and section
+- **Comprehensive Registration**: Capture first name, middle name, last name, sex, mobile number, class, and section
+- **Grade Level Restriction**: Optional filtering of students by assigned grade levels
 - **QR Code Generation**: Automatic unique QR code creation for each student
+- **Students Directory**: Browse students organized by section with filtering
 - **Bulk Operations**: View, edit, search, and delete students with admin activity logging
 - **Student Details API**: Quick lookup by LRN for real-time information display
-- **Data Validation**: LRN format validation, unique email enforcement, required field checks
+- **Data Validation**: LRN format validation, unique mobile number enforcement, required field checks
 
 ### Manual Attendance Interface
 - **Dual Entry Modes**: 
   - Single Entry: Mark one student at a time with Time In/Time Out
   - Bulk Entry: Mark multiple students simultaneously
+- **Session Selection**: Choose AM or PM session for attendance marking
 - **Integrated QR Scanner**: Built-in camera scanner using ZXing library with continuous autofocus
 - **Today's Attendance View**: Real-time table showing all attendance records for current date
 - **Student Auto-complete**: Quick LRN lookup with automatic name and section population
@@ -61,14 +103,16 @@ This system was developed as part of a research project to modernize and streaml
 - **Date Range Filtering**: Generate reports for specific date periods
 - **Section-based Reports**: Filter attendance by specific sections or grade levels
 - **CSV Export**: Download attendance data in CSV format for external analysis
+- **PDF Export**: Generate formatted PDF reports for printing (TCPDF integration)
 - **Activity Logging**: Complete audit trail of all admin actions (login, logout, add, edit, delete)
-- **Status Tracking**: Monitor Present, Absent, Time In, and Time Out records
+- **Status Tracking**: Monitor Present, Absent, Late, Time In, and Time Out records
 
 ### Security & Authentication
 - **Admin Login System**: Secure authentication with session management
+- **Multi-Role Support**: Admin, Teacher, Staff, Student roles with permission matrix
+- **Role-Based Navigation**: Menu items filtered by user permissions
 - **Password Reset**: Email-based password recovery with token expiration
 - **Activity Logging**: Track all administrative actions with IP address and timestamps
-- **Role-based Access**: Support for admin, teacher, and staff roles
 - **SQL Injection Protection**: Prepared statements and parameterized queries throughout
 
 ### Modern UI/UX
@@ -97,14 +141,14 @@ This system was developed as part of a research project to modernize and streaml
 
 ### 1. Database Setup
 
-1. Create a MySQL database named `attendance_system`:
+1. Create a MySQL database named `asj_attendease_db`:
    ```sql
-   CREATE DATABASE attendance_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE DATABASE asj_attendease_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
 
 2. Import the database structure using the latest export:
    ```bash
-   mysql -u your_username -p attendance_system < database/attendance_system.sql
+   mysql -u your_username -p asj_attendease_db < database/asj_attendease_db.sql
    ```
    
    This will create all necessary tables:
@@ -119,7 +163,7 @@ This system was developed as part of a research project to modernize and streaml
 1. **Database Configuration**: Edit `config/db_config.php`:
    ```php
    define('DB_HOST', 'localhost');
-   define('DB_NAME', 'attendance_system');
+   define('DB_NAME', 'asj_attendease_db');
    define('DB_USER', 'your_mysql_username');
    define('DB_PASS', 'your_mysql_password');
    ```
@@ -212,9 +256,10 @@ AttendEase uses a simple, flexible attendance tracking model:
 ```
 ACSCCI-Attendance-Checker/
 ├── index.php                        # Public landing page
-├── register_student.php             # Student self-registration form
 ├── scan_attendance.php              # Full-screen QR code scanner (instant attendance)
 ├── view_students.php                # Public student directory
+├── test_attendance_email.php        # Email testing utility
+├── GENERAL_PROCEDURE_FLOWCHART.md   # System flowcharts and procedures
 │
 ├── admin/                           # Admin-only area (requires login)
 │   ├── dashboard.php                # Real-time admin dashboard with charts
@@ -261,7 +306,11 @@ ACSCCI-Attendance-Checker/
 │
 ├── css/                             # Stylesheets
 │   ├── style.css                    # Legacy/public styles
-│   ├── modern-design.css            # Main admin theme (gradients, variables)
+│   ├── asj-theme.css                # Main ASJ branding theme
+│   ├── asj-admin-theme.css          # Admin area theme
+│   ├── asj-dashboard-theme.css      # Dashboard styling
+│   ├── asj-dashboard-modern.css     # Modern dashboard enhancements
+│   ├── modern-design.css            # Modern design elements (gradients, variables)
 │   ├── admin-login.css              # Login page styling
 │   ├── manage-students.css          # Student management styles
 │   ├── manage-sections-modern.css   # Section management styles
@@ -276,26 +325,23 @@ ACSCCI-Attendance-Checker/
 │   └── qrcode.min.js                # QR code generation library
 │
 ├── libs/                            # Third-party libraries
-│   ├── phpqrcode.php                # PHP QR Code generator
 │   └── PHPMailer/                   # Email sending library
 │       ├── PHPMailer.php
 │       ├── SMTP.php
 │       ├── Exception.php
 │       └── ... (other PHPMailer files)
 │
+├── assets/                          # Static assets
+│   └── asj-logo.png                 # School logo image
+│
 ├── database/                        # Database scripts
-│   ├── attendance_system.sql        # CURRENT DATABASE EXPORT (Nov 1, 2025)
-│   ├── add_section_column_to_students.sql   # Migration: Add section field
-│   ├── add_school_year_column.sql           # Migration: Add school_year to sections
-│   └── fix_sections_table.sql               # Maintenance: Fix sections metadata
+│   └── asj_attendease_db.sql        # CURRENT DATABASE EXPORT (Feb 3, 2026)
 │
 ├── uploads/                         # User-generated content
 │   └── qrcodes/                     # Generated QR code images
-│       ├── student_20.png
-│       ├── student_26.png
 │       └── ... (auto-generated)
 │
-├── logs/                            # Application logs
+├── GENERAL_PROCEDURE_FLOWCHART.md   # Development and system flowcharts
 │
 └── README.md                        # This documentation file
 ```
@@ -649,7 +695,7 @@ Create new report pages in `admin/` folder:
 ```php
 // Check config/db_config.php
 define('DB_HOST', 'localhost');      // Correct host?
-define('DB_NAME', 'attendance_system'); // Database exists?
+define('DB_NAME', 'asj_attendease_db'); // Database exists?
 define('DB_USER', 'root');           // Correct username?
 define('DB_PASS', '');               // Correct password?
 ```
@@ -657,7 +703,7 @@ define('DB_PASS', '');               // Correct password?
 - **Test Connection**: 
   ```bash
   mysql -u root -p
-  USE attendance_system;
+  USE asj_attendease_db;
   SHOW TABLES;
   ```
 - **Check Firewall**: Allow MySQL port 3306
@@ -858,7 +904,7 @@ We welcome contributions to improve AttendEase! Here's how you can help:
 ### Documentation
 - **README**: You're reading it! Check troubleshooting section first
 - **Code Comments**: Inline documentation in all major files
-- **Database Schema**: See `database/attendance_system.sql` for structure
+- **Database Schema**: See `database/asj_attendease_db.sql` for structure
 
 ### Community
 - **GitHub Issues**: Report bugs and request features
@@ -909,8 +955,8 @@ This project is developed for educational purposes and is open-source.
 - **Institution**: Academy of St. Joseph Claveria, Cagayan Inc.
 - **Repository**: Academy-of-St.Joseph-Claveria-Cagayan-Inc.-Attendance-Checker
 - **Owner**: TsmHabib03
-- **Current Version**: 2.0 (Time In/Time Out System)
-- **Last Updated**: November 7, 2025
+- **Current Version**: 3.0 (Multi-Role, AM/PM Sessions, Teacher Attendance, Behavior Monitoring)
+- **Last Updated**: February 3, 2026
 - **License**: Educational Open Source
 - **Research Purpose**: Developed as part of a research study on modernizing attendance management systems in educational institutions
 
@@ -920,7 +966,7 @@ This project is developed for educational purposes and is open-source.
 
 ```bash
 # 1. Import database
-mysql -u root -p < database/attendance_system.sql
+mysql -u root -p < database/asj_attendease_db.sql
 
 # 2. Configure database
 nano config/db_config.php  # Update credentials

@@ -455,8 +455,14 @@ if (!isset($_SESSION['admin_logged_in']) || !$_SESSION['admin_logged_in']) {
                 </a>
                 
                 <div class="nav-section-title">Management</div>
-                <a href="view_students.php" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['view_students.php', 'manage_students.php'])) ? 'active' : ''; ?>">
-                    <i class="fas fa-users"></i> Students
+                <a href="students_directory.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'students_directory.php') ? 'active' : ''; ?>">
+                    <i class="fas fa-users"></i> Students Directory
+                </a>
+                <a href="manage_students.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_students.php') ? 'active' : ''; ?>">
+                    <i class="fas fa-user-edit"></i> Manage Students
+                </a>
+                <a href="manage_teachers.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_teachers.php') ? 'active' : ''; ?>">
+                    <i class="fas fa-chalkboard-teacher"></i> Teachers
                 </a>
                 <a href="manage_sections.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_sections.php') ? 'active' : ''; ?>">
                     <i class="fas fa-layer-group"></i> Sections
@@ -466,8 +472,22 @@ if (!isset($_SESSION['admin_logged_in']) || !$_SESSION['admin_logged_in']) {
                 <a href="manual_attendance.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'manual_attendance.php') ? 'active' : ''; ?>">
                     <i class="fas fa-clipboard-check"></i> Manual Entry
                 </a>
+                <a href="manage_schedules.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_schedules.php') ? 'active' : ''; ?>">
+                    <i class="fas fa-clock"></i> Schedules
+                </a>
                 <a href="attendance_reports_sections.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'attendance_reports_sections.php') ? 'active' : ''; ?>">
                     <i class="fas fa-chart-bar"></i> Reports
+                </a>
+                
+                <div class="nav-section-title">Monitoring</div>
+                <a href="behavior_monitoring.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'behavior_monitoring.php') ? 'active' : ''; ?>">
+                    <i class="fas fa-chart-line"></i> Behavior Alerts
+                </a>
+                <a href="manage_badges.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_badges.php') ? 'active' : ''; ?>">
+                    <i class="fas fa-award"></i> Badges
+                </a>
+                <a href="sms_logs.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'sms_logs.php') ? 'active' : ''; ?>">
+                    <i class="fas fa-sms"></i> SMS Logs
                 </a>
                 
                 <div class="nav-section-title">Quick Actions</div>

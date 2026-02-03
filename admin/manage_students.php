@@ -127,7 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $firstName = trim($_POST['first_name'] ?? '');
         $lastName = trim($_POST['last_name'] ?? '');
         $middleName = trim($_POST['middle_name'] ?? '');
-        $gender = trim($_POST['gender'] ?? '');
+        $sex = trim($_POST['sex'] ?? '');
+        $mobileNumber = trim($_POST['mobile_number'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $class = trim($_POST['class'] ?? '');
         $section = trim($_POST['section'] ?? '');
@@ -141,27 +142,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $class = "Grade " . $gradeNum;
                 }
             }
-            // If user entered "K" or "k", convert to "Kindergarten"
-            elseif (preg_match('/^k$/i', $class)) {
-                $class = "Kindergarten";
-            }
+            // Note: Kindergarten and Elementary (G1-6) are not supported in this system
         }
         
         // Validation
-        if (empty($lrn) || empty($firstName) || empty($lastName) || empty($gender) || empty($email) || empty($class) || empty($section)) {
+        if (empty($lrn) || empty($firstName) || empty($lastName) || empty($sex) || empty($mobileNumber) || empty($class) || empty($section)) {
             $message = "All required fields must be filled.";
             $messageType = "error";
-        } elseif (!in_array($gender, ['Male', 'Female'])) {
-            $message = "Please select a valid gender.";
+        } elseif (!in_array($sex, ['Male', 'Female'])) {
+            $message = "Please select a valid sex.";
             $messageType = "error";
         } elseif (!preg_match('/^\d{11,13}$/', $lrn)) {
             $message = "LRN must be 11-13 digits only.";
             $messageType = "error";
-        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        } elseif (!preg_match('/^(09|\+639)\d{9}$/', preg_replace('/[^0-9+]/', '', $mobileNumber))) {
+            $message = "Please enter a valid Philippine mobile number (09XX-XXX-XXXX).";
+            $messageType = "error";
+        } elseif (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $message = "Please enter a valid email address.";
             $messageType = "error";
-        } elseif (!preg_match('/^(Kindergarten|Grade\s+([1-9]|1[0-2]))$/i', $class)) {
-            $message = "Grade Level must be Kindergarten or Grade 1 to Grade 12 (e.g., 'Kindergarten', 'Grade 1', 'Grade 11').";
+        } elseif (!preg_match('/^Grade\s+(7|8|9|10|11|12)$/i', $class)) {
+            $message = "Grade Level must be Grade 7 to Grade 12 (Junior/Senior High School only).";
             $messageType = "error";
         } else {
             try {
@@ -185,10 +186,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         // Insert new student
                         $stmt = $pdo->prepare("
-                            INSERT INTO students (lrn, first_name, last_name, middle_name, gender, email, class, section, created_at) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                            INSERT INTO students (lrn, first_name, last_name, middle_name, sex, mobile_number, email, class, section, created_at) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                         ");
-                        $stmt->execute([$lrn, $firstName, $lastName, $middleName, $gender, $email, $class, $section]);
+                        $stmt->execute([$lrn, $firstName, $lastName, $middleName, $sex, $mobileNumber, $email, $class, $section]);
                         
                         // Get the newly inserted student ID
                         $newStudentId = $pdo->lastInsertId();
@@ -233,10 +234,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         // Update student
                         $stmt = $pdo->prepare("
                             UPDATE students 
-                            SET lrn = ?, first_name = ?, last_name = ?, middle_name = ?, gender = ?, email = ?, class = ?, section = ?, updated_at = NOW() 
+                            SET lrn = ?, first_name = ?, last_name = ?, middle_name = ?, sex = ?, mobile_number = ?, email = ?, class = ?, section = ?, updated_at = NOW() 
                             WHERE id = ?
                         ");
-                        $stmt->execute([$lrn, $firstName, $lastName, $middleName, $gender, $email, $class, $section, $editStudent['id']]);
+                        $stmt->execute([$lrn, $firstName, $lastName, $middleName, $sex, $mobileNumber, $email, $class, $section, $editStudent['id']]);
                         
                         // If LRN changed, regenerate QR code
                         if ($lrn !== $editStudent['lrn']) {
@@ -838,24 +839,6 @@ include 'includes/header_modern.php';
                                 class="form-select" 
                                 required>
                             <option value="">Select Grade Level</option>
-                            <optgroup label="Early Childhood">
-                                <?php 
-                                $earlyGrades = ['Kindergarten'];
-                                foreach ($earlyGrades as $grade): 
-                                    $selected = (($editStudent['class'] ?? '') === $grade) ? 'selected' : '';
-                                ?>
-                                    <option value="<?php echo $grade; ?>" <?php echo $selected; ?>><?php echo $grade; ?></option>
-                                <?php endforeach; ?>
-                            </optgroup>
-                            <optgroup label="Elementary">
-                                <?php 
-                                $elementaryGrades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
-                                foreach ($elementaryGrades as $grade): 
-                                    $selected = (($editStudent['class'] ?? '') === $grade) ? 'selected' : '';
-                                ?>
-                                    <option value="<?php echo $grade; ?>" <?php echo $selected; ?>><?php echo $grade; ?></option>
-                                <?php endforeach; ?>
-                            </optgroup>
                             <optgroup label="Junior High School">
                                 <?php 
                                 $juniorGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
@@ -948,35 +931,52 @@ include 'includes/header_modern.php';
                 
                 <div class="form-grid two-col">
                     <div class="form-group">
-                        <label for="gender">
-                            Gender
+                        <label for="sex">
+                            Sex
                             <span class="required">*</span>
                         </label>
-                        <select id="gender" 
-                                name="gender" 
+                        <select id="sex" 
+                                name="sex" 
                                 class="form-select" 
                                 required>
-                            <option value="">Select Gender</option>
-                            <option value="Male" <?php echo (($editStudent['gender'] ?? '') === 'Male') ? 'selected' : ''; ?>>Male</option>
-                            <option value="Female" <?php echo (($editStudent['gender'] ?? '') === 'Female') ? 'selected' : ''; ?>>Female</option>
+                            <option value="">Select Sex</option>
+                            <option value="Male" <?php echo (($editStudent['sex'] ?? '') === 'Male') ? 'selected' : ''; ?>>Male</option>
+                            <option value="Female" <?php echo (($editStudent['sex'] ?? '') === 'Female') ? 'selected' : ''; ?>>Female</option>
                         </select>
                         <small class="form-help">Required for SF2 reporting</small>
                     </div>
                     
                     <div class="form-group">
-                        <label for="email">
-                            Email Address
+                        <label for="mobile_number">
+                            Mobile Number
                             <span class="required">*</span>
+                        </label>
+                        <input type="tel" 
+                               id="mobile_number" 
+                               name="mobile_number" 
+                               class="form-input" 
+                               required 
+                               maxlength="15"
+                               placeholder="09XX-XXX-XXXX"
+                               value="<?php echo sanitizeOutput($editStudent['mobile_number'] ?? ''); ?>">
+                        <small class="form-help">Parent's mobile number for SMS notifications</small>
+                    </div>
+                </div>
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="email">
+                            Parent/Guardian Email
+                            <span class="optional">(optional)</span>
                         </label>
                         <input type="email" 
                                id="email" 
                                name="email" 
                                class="form-input" 
-                               required 
                                maxlength="100"
-                               placeholder="Enter email address"
+                               placeholder="parent@example.com"
                                value="<?php echo sanitizeOutput($editStudent['email'] ?? ''); ?>">
-                        <small class="form-help">Used for communication and notifications</small>
+                        <small class="form-help">Optional email for additional notifications</small>
                     </div>
                 </div>
                 

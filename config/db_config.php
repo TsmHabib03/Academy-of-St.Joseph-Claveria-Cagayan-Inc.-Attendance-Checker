@@ -9,8 +9,8 @@
 
 // Database configuration
 define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', 'muning0328');
+define('DB_USER', 'root'); // Default username should be root
+define('DB_PASS', 'muning0328'); // Set muning0328 into blank '' as default password
 define('DB_NAME', 'asj_attendease_db'); // ← NEW DATABASE NAME
 define('DB_CHARSET', 'utf8mb4');
 

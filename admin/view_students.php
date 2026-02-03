@@ -21,7 +21,7 @@ try {
     $params = [];
     
     if (!empty($search)) {
-        $sql .= " AND (s.lrn LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ? OR s.email LIKE ? OR s.section LIKE ?)";
+        $sql .= " AND (s.lrn LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ? OR s.mobile_number LIKE ? OR s.section LIKE ?)";
         $searchTerm = "%$search%";
         $params = array_fill(0, 5, $searchTerm);
     }
@@ -1442,7 +1442,7 @@ include 'includes/header_modern.php';
                     type="text" 
                     name="search" 
                     class="form-control" 
-                    placeholder="Search by LRN, name, email, or section..."
+                    placeholder="Search by LRN, name, mobile number, or section..."
                     value="<?php echo isset($_GET['search']) ? htmlspecialchars($_GET['search']) : ''; ?>"
                 >
             </div>
@@ -1517,8 +1517,8 @@ include 'includes/header_modern.php';
                     <tr>
                         <th>LRN</th>
                         <th>Full Name</th>
-                        <th>Gender</th>
-                        <th>Email</th>
+                        <th>Sex</th>
+                        <th>Mobile Number</th>
                         <th>Grade Level</th>
                         <th>Section</th>
                         <th>Actions</th>
@@ -1534,12 +1534,12 @@ include 'includes/header_modern.php';
                             <span class="student-name"><?php echo sanitizeOutput(trim($student['first_name'] . ' ' . $student['middle_name'] . ' ' . $student['last_name'])); ?></span>
                         </td>
                         <td>
-                            <span class="badge badge-<?php echo $student['gender'] === 'Male' ? 'primary' : 'error'; ?>">
-                                <i class="fas fa-<?php echo $student['gender'] === 'Male' ? 'mars' : 'venus'; ?>"></i>
-                                <?php echo sanitizeOutput($student['gender']); ?>
+                            <span class="badge badge-<?php echo ($student['sex'] ?? '') === 'Male' ? 'primary' : 'error'; ?>">
+                                <i class="fas fa-<?php echo ($student['sex'] ?? '') === 'Male' ? 'mars' : 'venus'; ?>"></i>
+                                <?php echo sanitizeOutput($student['sex'] ?? ''); ?>
                             </span>
                         </td>
-                        <td><?php echo sanitizeOutput($student['email']); ?></td>
+                        <td><?php echo sanitizeOutput($student['mobile_number'] ?? ''); ?></td>
                         <td>
                             <span class="badge badge-primary"><?php echo sanitizeOutput($student['class'] ?? 'N/A'); ?></span>
                         </td>
@@ -1606,17 +1606,17 @@ include 'includes/header_modern.php';
                             <span class="student-card-value"><?php echo sanitizeOutput($student['lrn']); ?></span>
                         </div>
                         <div class="student-card-field">
-                            <span class="student-card-label">Gender</span>
+                            <span class="student-card-label">Sex</span>
                             <span class="student-card-value">
-                                <span class="badge badge-<?php echo $student['gender'] === 'Male' ? 'primary' : 'error'; ?>">
-                                    <i class="fas fa-<?php echo $student['gender'] === 'Male' ? 'mars' : 'venus'; ?>"></i>
-                                    <?php echo sanitizeOutput($student['gender']); ?>
+                                <span class="badge badge-<?php echo ($student['sex'] ?? '') === 'Male' ? 'primary' : 'error'; ?>">
+                                    <i class="fas fa-<?php echo ($student['sex'] ?? '') === 'Male' ? 'mars' : 'venus'; ?>"></i>
+                                    <?php echo sanitizeOutput($student['sex'] ?? ''); ?>
                                 </span>
                             </span>
                         </div>
                         <div class="student-card-field" style="grid-column: 1 / -1;">
-                            <span class="student-card-label">Email</span>
-                            <span class="student-card-value"><?php echo sanitizeOutput($student['email']); ?></span>
+                            <span class="student-card-label">Mobile Number</span>
+                            <span class="student-card-value"><?php echo sanitizeOutput($student['mobile_number'] ?? ''); ?></span>
                         </div>
                     </div>
                     <div class="student-card-actions">
@@ -1694,12 +1694,12 @@ include 'includes/header_modern.php';
                         <span class="detail-value" id="view-lastname">-</span>
                     </div>
                     <div class="detail-item">
-                        <span class="detail-label">Gender</span>
-                        <span class="detail-value" id="view-gender">-</span>
+                        <span class="detail-label">Sex</span>
+                        <span class="detail-value" id="view-sex">-</span>
                     </div>
                     <div class="detail-item full-width">
-                        <span class="detail-label">Email Address</span>
-                        <span class="detail-value" id="view-email">-</span>
+                        <span class="detail-label">Mobile Number</span>
+                        <span class="detail-value" id="view-mobile">-</span>
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Class/Section</span>
@@ -1846,8 +1846,8 @@ function viewStudentDetails(student) {
     document.getElementById('view-firstname').textContent = student.first_name || '-';
     document.getElementById('view-middlename').textContent = student.middle_name || '-';
     document.getElementById('view-lastname').textContent = student.last_name || '-';
-    document.getElementById('view-gender').textContent = student.gender || '-';
-    document.getElementById('view-email').textContent = student.email || '-';
+    document.getElementById('view-sex').textContent = student.sex || '-';
+    document.getElementById('view-mobile').textContent = student.mobile_number || '-';
     document.getElementById('view-class').textContent = student.class || '-';
     document.getElementById('view-attendance').textContent = student.attendance_days || '0';
     
@@ -2002,7 +2002,7 @@ function printQRCode() {
                     .qr-container { 
                         margin: 20px 0; 
                         padding: 30px; 
-                        border: 3px solid #667eea; 
+                        border: 3px solid var(--asj-green-500, #4CAF50); 
                         border-radius: 15px;
                         background: #f9fafb;
                     }
@@ -2013,7 +2013,7 @@ function printQRCode() {
                     }
                     .scan-text {
                         font-size: 14px;
-                        color: #764ba2;
+                        color: var(--asj-green-700, #388E3C);
                         font-weight: bold;
                         margin-top: 15px;
                         font-style: italic;

@@ -113,11 +113,12 @@ function viewStudent(student) {
     document.getElementById('view-middlename').textContent = student.middle_name || 'N/A';
     document.getElementById('view-lastname').textContent = student.last_name || 'N/A';
     
-    // Gender badge with icon
-    const genderBadge = `<span class="badge badge-${student.gender === 'Male' ? 'primary' : 'error'}">
-        <i class="fas fa-${student.gender === 'Male' ? 'mars' : 'venus'}"></i> ${student.gender}
+    // Sex badge with icon
+    const sex = student.sex || student.gender || 'N/A';
+    const sexBadge = `<span class="badge badge-${sex === 'Male' ? 'primary' : 'error'}">
+        <i class="fas fa-${sex === 'Male' ? 'mars' : 'venus'}"></i> ${sex}
     </span>`;
-    document.getElementById('view-gender').innerHTML = genderBadge;
+    document.getElementById('view-gender').innerHTML = sexBadge;
     
     document.getElementById('view-email').textContent = student.email || 'N/A';
     document.getElementById('view-class').innerHTML = `<span class="badge badge-info">${student.class}</span>`;

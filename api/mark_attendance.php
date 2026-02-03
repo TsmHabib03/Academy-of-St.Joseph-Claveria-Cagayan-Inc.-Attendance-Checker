@@ -46,6 +46,9 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
 // Load email configuration
 $emailConfig = require_once __DIR__ . '/../config/email_config.php';
 
+// Load SMS sender for dual-channel notifications
+require_once __DIR__ . '/../includes/sms_sender.php';
+
 // Clear any buffered output
 ob_end_clean();
 ob_start();
@@ -243,6 +246,84 @@ function generatePlainTextEmail($student, $type, $details) {
            "Note: This is an automated message. Please do not reply to this email.";
 }
 
+/**
+ * Send SMS notification for attendance events
+ * Dual-channel notification - sends SMS alongside email
+ * 
+ * @param PDO $db Database connection
+ * @param array $student Student information (must include mobile_number)
+ * @param string $type 'time_in' or 'time_out'
+ * @param array $details Attendance details (time, date, section)
+ * @return bool True if SMS sent successfully
+ */
+function sendAttendanceSms($db, $student, $type, $details) {
+    try {
+        $smsSender = new SmsSender($db);
+        
+        // Check if SMS is enabled
+        if (!$smsSender->isEnabled()) {
+            error_log("SMS notifications disabled - skipping SMS for LRN: " . $student['lrn']);
+            return true; // Not an error, just disabled
+        }
+        
+        // Check if student has a valid mobile number
+        if (empty($student['mobile_number'])) {
+            error_log("No mobile number for LRN: " . $student['lrn']);
+            return false;
+        }
+        
+        // Build student name
+        $studentName = trim($student['first_name'] . ' ' . $student['last_name']);
+        
+        // Get SMS config for template
+        $smsConfig = require __DIR__ . '/../config/sms_config.php';
+        
+        // Check if SMS should be sent for this event type
+        $configKey = 'send_on_' . $type;
+        if (!($smsConfig[$configKey] ?? false)) {
+            error_log("SMS disabled for event type: $type");
+            return true; // Not an error, just disabled for this type
+        }
+        
+        // Build SMS message using template
+        $template = $smsConfig['templates'][$type]['student'] ?? 
+                    "{name} has " . ($type === 'time_in' ? 'arrived at' : 'left') . " school at {time} on {date}.";
+        
+        $message = str_replace(
+            ['{name}', '{date}', '{time}', '{section}', '{school}'],
+            [
+                $studentName,
+                $details['date'],
+                $details['time'],
+                $student['class'],
+                $smsConfig['school_name'] ?? 'ASJ Claveria'
+            ],
+            $template
+        );
+        
+        // Send the SMS
+        $result = $smsSender->send(
+            $student['mobile_number'],
+            $message,
+            'parent',
+            $student['lrn'],
+            $type
+        );
+        
+        if ($result['success']) {
+            error_log("SMS sent successfully to: " . $student['mobile_number'] . " (Type: $type)");
+            return true;
+        } else {
+            error_log("SMS sending failed: " . ($result['message'] ?? 'Unknown error'));
+            return false;
+        }
+        
+    } catch (Exception $e) {
+        error_log("SMS notification error: " . $e->getMessage());
+        return false;
+    }
+}
+
 try {
     $database = new Database();
     $db = $database->getConnection();
@@ -252,28 +333,59 @@ try {
         throw new Exception('Database connection failed');
     }
     
-    $lrn = trim($_POST['lrn'] ?? '');
+    $scannedCode = trim($_POST['lrn'] ?? '');
     
-    if (empty($lrn)) {
-        throw new Exception('LRN is required');
+    if (empty($scannedCode)) {
+        throw new Exception('QR code data is required');
     }
     
-    // Validate LRN format
-    if (!preg_match('/^[0-9]{11,13}$/', $lrn)) {
-        throw new Exception('Invalid LRN format. Must be 11-13 digits.');
+    // Determine if this is a student LRN (11-13 digits) or teacher employee_id
+    $isStudent = preg_match('/^[0-9]{11,13}$/', $scannedCode);
+    $isTeacher = false;
+    $user = null;
+    $userType = 'student';
+    
+    if ($isStudent) {
+        // Get student details
+        $student_query = "SELECT * FROM students WHERE lrn = :code";
+        $student_stmt = $db->prepare($student_query);
+        $student_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+        $student_stmt->execute();
+        
+        if ($student_stmt->rowCount() === 0) {
+            // Not found as student, might be a teacher employee ID that happens to be numeric
+            $isStudent = false;
+        } else {
+            $user = $student_stmt->fetch(PDO::FETCH_ASSOC);
+            $user['lrn'] = $scannedCode; // Ensure LRN is set
+            $userType = 'student';
+        }
     }
     
-    // Get student details
-    $student_query = "SELECT * FROM students WHERE lrn = :lrn";
-    $student_stmt = $db->prepare($student_query);
-    $student_stmt->bindParam(':lrn', $lrn, PDO::PARAM_STR);
-    $student_stmt->execute();
-    
-    if ($student_stmt->rowCount() === 0) {
-        throw new Exception('Student not found in the system. Please register first.');
+    // If not a student, check if it's a teacher
+    if (!$isStudent) {
+        $teacher_query = "SELECT * FROM teachers WHERE employee_id = :code";
+        $teacher_stmt = $db->prepare($teacher_query);
+        $teacher_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+        $teacher_stmt->execute();
+        
+        if ($teacher_stmt->rowCount() > 0) {
+            $user = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
+            $user['lrn'] = $scannedCode; // Use employee_id as the identifier
+            $user['class'] = $user['department'] ?? 'Faculty';
+            $isTeacher = true;
+            $userType = 'teacher';
+        }
     }
     
-    $student = $student_stmt->fetch(PDO::FETCH_ASSOC);
+    // If neither student nor teacher found
+    if (!$user) {
+        throw new Exception('User not found in the system. Please register first.');
+    }
+    
+    // Set common variables for compatibility
+    $student = $user; // Use $student variable for backward compatibility
+    $lrn = $scannedCode;
     
     // Get current date and time
     $today = date('Y-m-d');
@@ -284,13 +396,18 @@ try {
     $db->beginTransaction();
     
     try {
+        // Use the appropriate table based on user type
+        $attendanceTable = $isTeacher ? 'teacher_attendance' : 'attendance';
+        $idColumn = $isTeacher ? 'employee_id' : 'lrn';
+        $userLabel = $isTeacher ? 'Teacher' : 'Student';
+        
         // Use SELECT ... FOR UPDATE to lock the row and prevent race conditions
-        $check_query = "SELECT * FROM attendance 
-                        WHERE lrn = :lrn 
+        $check_query = "SELECT * FROM {$attendanceTable} 
+                        WHERE {$idColumn} = :code 
                         AND date = :today 
                         FOR UPDATE";
         $check_stmt = $db->prepare($check_query);
-        $check_stmt->bindParam(':lrn', $lrn, PDO::PARAM_STR);
+        $check_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
         $check_stmt->bindParam(':today', $today, PDO::PARAM_STR);
         $check_stmt->execute();
         
@@ -300,10 +417,15 @@ try {
             // ===== TIME IN (First Scan) =====
             
             // Insert new attendance record with Time In
-            $insert_query = "INSERT INTO attendance (lrn, section, date, time_in, status) 
-                            VALUES (:lrn, :section, :date, :time_in, :status)";
+            if ($isTeacher) {
+                $insert_query = "INSERT INTO teacher_attendance (employee_id, department, date, time_in, status) 
+                                VALUES (:code, :section, :date, :time_in, :status)";
+            } else {
+                $insert_query = "INSERT INTO attendance (lrn, section, date, time_in, status) 
+                                VALUES (:code, :section, :date, :time_in, :status)";
+            }
             $insert_stmt = $db->prepare($insert_query);
-            $insert_stmt->bindParam(':lrn', $lrn, PDO::PARAM_STR);
+            $insert_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
             $insert_stmt->bindParam(':section', $student['class'], PDO::PARAM_STR);
             $insert_stmt->bindParam(':date', $today, PDO::PARAM_STR);
             $insert_stmt->bindParam(':time_in', $current_time, PDO::PARAM_STR);
@@ -324,21 +446,33 @@ try {
                 'section' => $student['class']
             ];
             
-            // Send Time In email (non-blocking)
-            $emailSent = false;
-            try {
-                $emailSent = sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails);
-            } catch (Exception $e) {
-                error_log("Email notification failed: " . $e->getMessage());
+            // Send notifications only for students (not teachers)
+            if (!$isTeacher) {
+                // Send Time In email (non-blocking)
+                $emailSent = false;
+                try {
+                    $emailSent = sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails);
+                } catch (Exception $e) {
+                    error_log("Email notification failed: " . $e->getMessage());
+                }
+                
+                // Send Time In SMS (dual-channel notification)
+                $smsSent = false;
+                try {
+                    $smsSent = sendAttendanceSms($db, $student, 'time_in', $emailDetails);
+                } catch (Exception $e) {
+                    error_log("SMS notification failed: " . $e->getMessage());
+                }
             }
             
-            // Return success response for Time In (minimal data for security)
+            // Return success response for Time In
             ob_end_clean();
             echo json_encode([
                 'success' => true,
                 'status' => 'time_in',
-                'message' => 'Time In recorded successfully!',
+                'message' => $userLabel . ' Time In recorded successfully!',
                 'student_name' => $student['first_name'] . ' ' . $student['last_name'],
+                'user_type' => $userType,
                 'time_in' => date('h:i A', strtotime($current_time)),
                 'date' => date('F j, Y', strtotime($today))
             ]);
@@ -347,13 +481,20 @@ try {
             // ===== TIME OUT (Second Scan) =====
             
             // Update existing record with Time Out
-            $update_query = "UPDATE attendance 
-                            SET time_out = :time_out
-                            WHERE lrn = :lrn 
-                            AND date = :today";
+            if ($isTeacher) {
+                $update_query = "UPDATE teacher_attendance 
+                                SET time_out = :time_out
+                                WHERE employee_id = :code 
+                                AND date = :today";
+            } else {
+                $update_query = "UPDATE attendance 
+                                SET time_out = :time_out
+                                WHERE lrn = :code 
+                                AND date = :today";
+            }
             $update_stmt = $db->prepare($update_query);
             $update_stmt->bindParam(':time_out', $current_time, PDO::PARAM_STR);
-            $update_stmt->bindParam(':lrn', $lrn, PDO::PARAM_STR);
+            $update_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
             $update_stmt->bindParam(':today', $today, PDO::PARAM_STR);
             
             if (!$update_stmt->execute()) {
@@ -370,12 +511,23 @@ try {
                 'section' => $student['class']
             ];
             
-            // Send Time Out email (non-blocking)
-            $emailSent = false;
-            try {
-                $emailSent = sendAttendanceEmail($emailConfig, $student, 'time_out', $emailDetails);
-            } catch (Exception $e) {
-                error_log("Email notification failed: " . $e->getMessage());
+            // Send notifications only for students (not teachers)
+            if (!$isTeacher) {
+                // Send Time Out email (non-blocking)
+                $emailSent = false;
+                try {
+                    $emailSent = sendAttendanceEmail($emailConfig, $student, 'time_out', $emailDetails);
+                } catch (Exception $e) {
+                    error_log("Email notification failed: " . $e->getMessage());
+                }
+                
+                // Send Time Out SMS (dual-channel notification)
+                $smsSent = false;
+                try {
+                    $smsSent = sendAttendanceSms($db, $student, 'time_out', $emailDetails);
+                } catch (Exception $e) {
+                    error_log("SMS notification failed: " . $e->getMessage());
+                }
             }
             
             // Calculate duration
@@ -386,13 +538,14 @@ try {
             $minutes = floor(($duration_seconds % 3600) / 60);
             $duration = sprintf('%d hours %d minutes', $hours, $minutes);
             
-            // Return success response for Time Out (minimal data for security)
+            // Return success response for Time Out
             ob_end_clean();
             echo json_encode([
                 'success' => true,
                 'status' => 'time_out',
-                'message' => 'Time Out recorded successfully!',
+                'message' => $userLabel . ' Time Out recorded successfully!',
                 'student_name' => $student['first_name'] . ' ' . $student['last_name'],
+                'user_type' => $userType,
                 'time_out' => date('h:i A', strtotime($current_time)),
                 'duration' => $duration,
                 'date' => date('F j, Y', strtotime($today))

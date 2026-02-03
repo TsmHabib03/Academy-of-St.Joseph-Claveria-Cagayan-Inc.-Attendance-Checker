@@ -103,6 +103,168 @@ include 'includes/header_modern.php';
         margin: 0;
     }
 
+    /* ===== ENHANCED PAGE HEADER (Breadcrumb Support) ===== */
+    .page-header-background {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 0;
+    }
+
+    .header-gradient-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(56, 142, 60, 0.2) 100%);
+    }
+
+    .header-pattern {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image: radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                          radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
+    }
+
+    .page-header-content-enhanced {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: var(--space-4);
+    }
+
+    .page-title-section {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-4);
+    }
+
+    .page-icon-enhanced {
+        width: 64px;
+        height: 64px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: var(--radius-xl);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--text-3xl);
+        color: white;
+        flex-shrink: 0;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .page-title-content {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+
+    .breadcrumb-nav {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-size: var(--text-sm);
+    }
+
+    .breadcrumb-link {
+        display: flex;
+        align-items: center;
+        gap: var(--space-1);
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        transition: color 0.2s ease;
+    }
+
+    .breadcrumb-link:hover {
+        color: white;
+    }
+
+    .breadcrumb-separator {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.75rem;
+    }
+
+    .breadcrumb-current {
+        color: white;
+        font-weight: var(--font-medium);
+    }
+
+    .page-title-enhanced {
+        font-size: var(--text-2xl);
+        font-weight: var(--font-bold);
+        color: white;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .page-subtitle-enhanced {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        color: rgba(255, 255, 255, 0.9);
+        font-size: var(--text-sm);
+        margin: 0;
+    }
+
+    .page-subtitle-enhanced i {
+        font-size: var(--text-xs);
+        opacity: 0.8;
+    }
+
+    .page-actions-enhanced {
+        display: flex;
+        gap: var(--space-3);
+        flex-wrap: wrap;
+    }
+
+    .btn-header {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-5);
+        border-radius: var(--radius-lg);
+        font-size: var(--text-sm);
+        font-weight: var(--font-semibold);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+        text-decoration: none;
+    }
+
+    .btn-header-primary {
+        background: white;
+        color: var(--asj-green-600);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-header-primary:hover {
+        background: var(--asj-green-50);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-header-secondary {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(10px);
+    }
+
+    .btn-header-secondary:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+
     /* ===== FILTERS SECTION ===== */
     .filters-card {
         background: white;
@@ -609,14 +771,39 @@ include 'includes/header_modern.php';
     }
 </style>
 
-<!-- Page Header -->
+<!-- Page Header - Enhanced Design -->
 <div class="page-header-enhanced">
-    <div class="page-header-content">
-        <h1>
-            <i class="fas fa-chart-bar"></i>
-            Attendance Reports
-        </h1>
-        <p>Generate comprehensive attendance reports by section and date range</p>
+    <div class="page-header-background">
+        <div class="header-gradient-overlay"></div>
+        <div class="header-pattern"></div>
+    </div>
+    <div class="page-header-content-enhanced">
+        <div class="page-title-section">
+            <div class="page-icon-enhanced">
+                <i class="fas fa-<?php echo $pageIcon; ?>"></i>
+            </div>
+            <div class="page-title-content">
+                <div class="breadcrumb-nav">
+                    <a href="dashboard.php" class="breadcrumb-link">
+                        <i class="fas fa-home"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <i class="fas fa-chevron-right breadcrumb-separator"></i>
+                    <span class="breadcrumb-current"><?php echo $pageTitle; ?></span>
+                </div>
+                <h1 class="page-title-enhanced"><?php echo $pageTitle; ?></h1>
+                <p class="page-subtitle-enhanced">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Generate comprehensive attendance reports by section and date range</span>
+                </p>
+            </div>
+        </div>
+        <div class="page-actions-enhanced">
+            <button class="btn-header btn-header-secondary" onclick="window.location.reload()">
+                <i class="fas fa-sync-alt"></i>
+                <span>Refresh</span>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -637,7 +824,7 @@ include 'includes/header_modern.php';
                         <option value="">All Sections</option>
                         <?php
                         try {
-                            $stmt = $pdo->query("SELECT section_name FROM sections WHERE status = 'active' ORDER BY section_name");
+                            $stmt = $pdo->query("SELECT section_name FROM sections WHERE is_active = 1 ORDER BY section_name");
                             while ($row = $stmt->fetch()) {
                                 echo "<option value='" . htmlspecialchars($row['section_name']) . "'>" . htmlspecialchars($row['section_name']) . "</option>";
                             }
