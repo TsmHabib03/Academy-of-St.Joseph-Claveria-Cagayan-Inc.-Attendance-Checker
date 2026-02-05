@@ -1,5 +1,7 @@
 <?php
-header('Content-Type: application/json');
+require_once __DIR__ . '/bootstrap.php';
+api_require_schema_or_exit($pdo, ['tables' => ['attendance']]);
+api_require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_STAFF]);
 require_once '../includes/database.php';
 
 try {

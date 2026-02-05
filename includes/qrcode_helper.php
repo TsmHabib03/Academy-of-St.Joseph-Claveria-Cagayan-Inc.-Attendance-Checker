@@ -254,3 +254,53 @@ function studentQRCodeExists($studentId) {
     $filepath = __DIR__ . '/../uploads/qrcodes/student_' . $studentId . '.png';
     return file_exists($filepath);
 }
+
+/**
+ * Generate generic QR code (used for teachers)
+ * @param string $identifier Unique identifier (Data content and part of filename)
+ * @param string $type Type of entity (student, teacher)
+ * @return string|false Path to QR code file or false on failure
+ */
+function generateQRCode($identifier, $type = 'student') {
+    try {
+        // Define upload directory
+        $uploadDir = __DIR__ . '/../uploads/qrcodes/';
+        
+        // Create directory if it doesn't exist
+        if (!is_dir($uploadDir)) {
+            if (!mkdir($uploadDir, 0777, true)) {
+                error_log("Failed to create QR code directory: " . $uploadDir);
+                return false;
+            }
+        }
+        
+        // Ensure directory is writable
+        if (!is_writable($uploadDir)) {
+            chmod($uploadDir, 0777);
+        }
+        
+        // Generate filename based on type
+        // For teachers, we use employee_id in filename since we might not have DB ID yet
+        $prefix = ($type === 'teacher') ? 'teacher_' : 'student_';
+        
+        // Sanitize identifier for filename
+        $safeIdentifier = preg_replace('/[^a-zA-Z0-9_-]/', '', $identifier);
+        $filename = $prefix . $safeIdentifier . '.png';
+        $filepath = $uploadDir . $filename;
+        
+        // Generate QR code using ZXing API
+        $success = generateQRCodeWithZXing($identifier, $filepath);
+        
+        if ($success && file_exists($filepath)) {
+            // Return relative path for database storage
+            return 'uploads/qrcodes/' . $filename;
+        } else {
+            error_log("QR code file was not created: " . $filepath);
+            return false;
+        }
+        
+    } catch (Exception $e) {
+        error_log("QR code generation error: " . $e->getMessage());
+        return false;
+    }
+}

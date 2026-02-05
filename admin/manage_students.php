@@ -58,9 +58,7 @@ function autoCreateSection($pdo, $sectionName, $studentClass = '') {
         // Extract grade level from student's class field (e.g., "Grade 12" -> "12", "Kindergarten" -> "K")
         $gradeLevel = '';
         if (!empty($studentClass)) {
-            if (preg_match('/^Kindergarten$/i', $studentClass)) {
-                $gradeLevel = 'K';
-            } elseif (preg_match('/^Grade\s+(\d{1,2})$/i', $studentClass, $matches)) {
+             if (preg_match('/^Grade\s+(\d{1,2})$/i', $studentClass, $matches)) {
                 $gradeLevel = $matches[1];
             }
         }
@@ -184,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             error_log("Section creation failed for '$section': " . $sectionResult['message']);
                         }
                         
-                        // Insert new student
+                        // Insert new student with both mobile and email
                         $stmt = $pdo->prepare("
                             INSERT INTO students (lrn, first_name, last_name, middle_name, sex, mobile_number, email, class, section, created_at) 
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
@@ -232,6 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         
                         // Update student
+                        // Update student with both mobile and email
                         $stmt = $pdo->prepare("
                             UPDATE students 
                             SET lrn = ?, first_name = ?, last_name = ?, middle_name = ?, sex = ?, mobile_number = ?, email = ?, class = ?, section = ?, updated_at = NOW() 
@@ -858,7 +857,7 @@ include 'includes/header_modern.php';
                                 <?php endforeach; ?>
                             </optgroup>
                         </select>
-                        <small class="form-help">Student's grade level (Kindergarten to Grade 12)</small>
+                        <small class="form-help">Student's grade level (Grade 7 to Grade 12)</small>
                     </div>
                 </div>
                 
@@ -963,6 +962,8 @@ include 'includes/header_modern.php';
                     </div>
                 </div>
                 
+                <!-- Note: Email field removed - mobile stored in email column until migration -->
+                
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="email">
@@ -979,7 +980,7 @@ include 'includes/header_modern.php';
                         <small class="form-help">Optional email for additional notifications</small>
                     </div>
                 </div>
-                
+
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-<?php echo $editMode ? 'save' : 'plus'; ?>"></i>

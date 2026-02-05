@@ -98,7 +98,7 @@ function getUserRole(): ?string {
     if (!isAuthenticated()) {
         return null;
     }
-    return $_SESSION['admin_role'] ?? ROLE_ADMIN;
+    return $_SESSION['admin_role'] ?? null;
 }
 
 /**

@@ -17,7 +17,9 @@ try {
             MAX(a.date) as last_attendance
             FROM students s
             LEFT JOIN attendance a ON s.lrn = a.lrn
-            WHERE 1=1";
+            WHERE 1=1 
+            AND s.class NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6')
+            AND s.class NOT LIKE 'Kinder%'";
     $params = [];
     
     if (!empty($search)) {
@@ -43,7 +45,11 @@ try {
     $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Get unique classes and sections for filters
-    $stmt = $pdo->query("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class");
+    $stmt = $pdo->query("SELECT DISTINCT class FROM students 
+                         WHERE class IS NOT NULL AND class != '' 
+                         AND class NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6')
+                         AND class NOT LIKE 'Kinder%'
+                         ORDER BY class");
     $classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
     $stmt = $pdo->query("SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != '' ORDER BY section");

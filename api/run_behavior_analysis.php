@@ -11,13 +11,11 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/../config/db_config.php';
 require_once __DIR__ . '/../includes/behavior_analyzer.php';
+require_once __DIR__ . '/../includes/auth_middleware.php';
 
-// Check for admin session
+// Start session and require admin role
 session_start();
-if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-    exit;
-}
+requireRole([ROLE_ADMIN]);
 
 try {
     $startTime = microtime(true);

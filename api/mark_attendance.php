@@ -400,7 +400,72 @@ try {
         $attendanceTable = $isTeacher ? 'teacher_attendance' : 'attendance';
         $idColumn = $isTeacher ? 'employee_id' : 'lrn';
         $userLabel = $isTeacher ? 'Teacher' : 'Student';
-        
+
+        // Determine student's section/grade for schedule lookup
+        $student_section_name = trim($student['section'] ?? $student['class'] ?? '');
+        $student_grade = trim($student['class'] ?? '');
+
+        // Lookup applicable schedule: prefer section match, then grade_level, then default
+        $schedule = null;
+        try {
+            $sched_sql = "SELECT s.* FROM attendance_schedules s LEFT JOIN sections sec ON s.section_id = sec.id
+                          WHERE s.is_active = 1 AND (
+                              (sec.section_name = :section_name AND s.section_id IS NOT NULL)
+                              OR (s.grade_level = :grade_level AND s.grade_level IS NOT NULL)
+                              OR s.is_default = 1
+                          )
+                          ORDER BY (sec.section_name = :section_name) DESC, (s.grade_level = :grade_level) DESC, s.is_default DESC
+                          LIMIT 1";
+            $sched_stmt = $db->prepare($sched_sql);
+            $sched_stmt->bindParam(':section_name', $student_section_name, PDO::PARAM_STR);
+            $sched_stmt->bindParam(':grade_level', $student_grade, PDO::PARAM_STR);
+            $sched_stmt->execute();
+            $schedule = $sched_stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (Exception $e) {
+            // If schedule lookup fails, fallback to null (will use sensible defaults)
+            error_log('Schedule lookup failed: ' . $e->getMessage());
+            $schedule = null;
+        }
+
+        // Default schedule values if none found
+        if (!$schedule) {
+            $schedule = [
+                'morning_start' => '06:00:00',
+                'morning_end' => '11:59:00',
+                'morning_late_after' => '07:30:00',
+                'afternoon_start' => '12:00:00',
+                'afternoon_end' => '18:00:00',
+                'afternoon_late_after' => '13:30:00'
+            ];
+        }
+
+        // Determine session (morning|afternoon) based on current time and schedule
+        $t = strtotime($current_time);
+        $morning_start = strtotime($schedule['morning_start']);
+        $morning_end = strtotime($schedule['morning_end']);
+        $morning_late = strtotime($schedule['morning_late_after']);
+        $afternoon_start = strtotime($schedule['afternoon_start']);
+        $afternoon_end = strtotime($schedule['afternoon_end']);
+        $afternoon_late = strtotime($schedule['afternoon_late_after']);
+
+        if ($t >= $morning_start && $t <= $morning_end) {
+            $session = 'morning';
+            $in_col = 'morning_time_in';
+            $out_col = 'morning_time_out';
+            $is_late = ($t > $morning_late);
+        } elseif ($t >= $afternoon_start && $t <= $afternoon_end) {
+            $session = 'afternoon';
+            $in_col = 'afternoon_time_in';
+            $out_col = 'afternoon_time_out';
+            $is_late = ($t > $afternoon_late);
+        } else {
+            // Out-of-schedule: default to morning logic
+            $session = 'morning';
+            $in_col = 'morning_time_in';
+            $out_col = 'morning_time_out';
+            $is_late = ($t > $morning_late);
+        }
+
         // Use SELECT ... FOR UPDATE to lock the row and prevent race conditions
         $check_query = "SELECT * FROM {$attendanceTable} 
                         WHERE {$idColumn} = :code 
@@ -410,156 +475,141 @@ try {
         $check_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
         $check_stmt->bindParam(':today', $today, PDO::PARAM_STR);
         $check_stmt->execute();
-        
+
         $existing_record = $check_stmt->fetch(PDO::FETCH_ASSOC);
-        
+
+        // Normalize section value to store in attendance row (backwards-compatible)
+        $section_value = $student['section'] ?? $student['class'] ?? '';
+
+        // Helper: prepare email details
+        $prepareEmailDetails = function() use ($today, $current_time, $student) {
+            return [
+                'date' => date('F j, Y', strtotime($today)),
+                'time' => date('h:i A', strtotime($current_time)),
+                'section' => $student['class'] ?? $student['section'] ?? ''
+            ];
+        };
+
         if (!$existing_record) {
             // ===== TIME IN (First Scan) =====
-            
-            // Insert new attendance record with Time In
+            $status = $is_late ? 'late' : 'present';
+
             if ($isTeacher) {
-                $insert_query = "INSERT INTO teacher_attendance (employee_id, department, date, time_in, status) 
+                $insert_query = "INSERT INTO teacher_attendance (employee_id, department, date, {$in_col}, status) 
                                 VALUES (:code, :section, :date, :time_in, :status)";
             } else {
-                $insert_query = "INSERT INTO attendance (lrn, section, date, time_in, status) 
+                $insert_query = "INSERT INTO attendance (lrn, section, date, {$in_col}, status) 
                                 VALUES (:code, :section, :date, :time_in, :status)";
             }
+
             $insert_stmt = $db->prepare($insert_query);
             $insert_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
-            $insert_stmt->bindParam(':section', $student['class'], PDO::PARAM_STR);
+            $insert_stmt->bindParam(':section', $section_value, PDO::PARAM_STR);
             $insert_stmt->bindParam(':date', $today, PDO::PARAM_STR);
             $insert_stmt->bindParam(':time_in', $current_time, PDO::PARAM_STR);
-            $status = 'present';
             $insert_stmt->bindParam(':status', $status, PDO::PARAM_STR);
-            
+
             if (!$insert_stmt->execute()) {
                 throw new Exception('Failed to record Time In. Please try again.');
             }
-            
-            // Commit the transaction before proceeding with email
+
             $db->commit();
-            
-            // Prepare email details for Time In
-            $emailDetails = [
-                'date' => date('F j, Y', strtotime($today)),
-                'time' => date('h:i A', strtotime($current_time)),
-                'section' => $student['class']
-            ];
-            
-            // Send notifications only for students (not teachers)
+
+            // Notifications for students only
             if (!$isTeacher) {
-                // Send Time In email (non-blocking)
-                $emailSent = false;
-                try {
-                    $emailSent = sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails);
-                } catch (Exception $e) {
-                    error_log("Email notification failed: " . $e->getMessage());
-                }
-                
-                // Send Time In SMS (dual-channel notification)
-                $smsSent = false;
-                try {
-                    $smsSent = sendAttendanceSms($db, $student, 'time_in', $emailDetails);
-                } catch (Exception $e) {
-                    error_log("SMS notification failed: " . $e->getMessage());
-                }
+                $emailDetails = $prepareEmailDetails();
+                try { sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); }
+                try { sendAttendanceSms($db, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); }
             }
-            
-            // Return success response for Time In
+
             ob_end_clean();
             echo json_encode([
                 'success' => true,
                 'status' => 'time_in',
+                'session' => $session,
+                'late' => $is_late,
                 'message' => $userLabel . ' Time In recorded successfully!',
-                'student_name' => $student['first_name'] . ' ' . $student['last_name'],
+                'student_name' => ($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''),
                 'user_type' => $userType,
                 'time_in' => date('h:i A', strtotime($current_time)),
                 'date' => date('F j, Y', strtotime($today))
             ]);
-            
-        } elseif ($existing_record['time_in'] !== null && $existing_record['time_out'] === null) {
-            // ===== TIME OUT (Second Scan) =====
-            
-            // Update existing record with Time Out
-            if ($isTeacher) {
-                $update_query = "UPDATE teacher_attendance 
-                                SET time_out = :time_out
-                                WHERE employee_id = :code 
-                                AND date = :today";
-            } else {
-                $update_query = "UPDATE attendance 
-                                SET time_out = :time_out
-                                WHERE lrn = :code 
-                                AND date = :today";
-            }
-            $update_stmt = $db->prepare($update_query);
-            $update_stmt->bindParam(':time_out', $current_time, PDO::PARAM_STR);
-            $update_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
-            $update_stmt->bindParam(':today', $today, PDO::PARAM_STR);
-            
-            if (!$update_stmt->execute()) {
-                throw new Exception('Failed to record Time Out. Please try again.');
-            }
-            
-            // Commit the transaction before proceeding with email
-            $db->commit();
-            
-            // Prepare email details for Time Out
-            $emailDetails = [
-                'date' => date('F j, Y', strtotime($today)),
-                'time' => date('h:i A', strtotime($current_time)),
-                'section' => $student['class']
-            ];
-            
-            // Send notifications only for students (not teachers)
-            if (!$isTeacher) {
-                // Send Time Out email (non-blocking)
-                $emailSent = false;
-                try {
-                    $emailSent = sendAttendanceEmail($emailConfig, $student, 'time_out', $emailDetails);
-                } catch (Exception $e) {
-                    error_log("Email notification failed: " . $e->getMessage());
-                }
-                
-                // Send Time Out SMS (dual-channel notification)
-                $smsSent = false;
-                try {
-                    $smsSent = sendAttendanceSms($db, $student, 'time_out', $emailDetails);
-                } catch (Exception $e) {
-                    error_log("SMS notification failed: " . $e->getMessage());
-                }
-            }
-            
-            // Calculate duration
-            $time_in = strtotime($existing_record['time_in']);
-            $time_out = strtotime($current_time);
-            $duration_seconds = $time_out - $time_in;
-            $hours = floor($duration_seconds / 3600);
-            $minutes = floor(($duration_seconds % 3600) / 60);
-            $duration = sprintf('%d hours %d minutes', $hours, $minutes);
-            
-            // Return success response for Time Out
-            ob_end_clean();
-            echo json_encode([
-                'success' => true,
-                'status' => 'time_out',
-                'message' => $userLabel . ' Time Out recorded successfully!',
-                'student_name' => $student['first_name'] . ' ' . $student['last_name'],
-                'user_type' => $userType,
-                'time_out' => date('h:i A', strtotime($current_time)),
-                'duration' => $duration,
-                'date' => date('F j, Y', strtotime($today))
-            ]);
-            
+
         } else {
-            // ===== ALREADY COMPLETED =====
-            $db->commit(); // Complete the transaction
-            
-            throw new Exception(
-                'Attendance already completed for today. ' .
-                'Time In: ' . date('h:i A', strtotime($existing_record['time_in'])) . ', ' .
-                'Time Out: ' . date('h:i A', strtotime($existing_record['time_out']))
-            );
+            // Existing record for today - decide whether to write in or out for this session
+            $existing_in = $existing_record[$in_col] ?? null;
+            $existing_out = $existing_record[$out_col] ?? null;
+
+            if ($existing_in === null) {
+                // Session Time In (row exists but in_col not set)
+                $status = $is_late ? 'late' : 'present';
+                $update_query = "UPDATE {$attendanceTable} SET {$in_col} = :time_in, status = :status WHERE {$idColumn} = :code AND date = :today";
+                $update_stmt = $db->prepare($update_query);
+                $update_stmt->bindParam(':time_in', $current_time, PDO::PARAM_STR);
+                $update_stmt->bindParam(':status', $status, PDO::PARAM_STR);
+                $update_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+                $update_stmt->bindParam(':today', $today, PDO::PARAM_STR);
+
+                if (!$update_stmt->execute()) {
+                    throw new Exception('Failed to record Time In. Please try again.');
+                }
+
+                $db->commit();
+                if (!$isTeacher) { $emailDetails = $prepareEmailDetails(); try { sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); } try { sendAttendanceSms($db, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); } }
+
+                ob_end_clean();
+                echo json_encode(['success' => true, 'status' => 'time_in', 'session' => $session, 'late' => $is_late, 'message' => $userLabel . ' Time In recorded successfully!', 'time_in' => date('h:i A', strtotime($current_time)), 'date' => date('F j, Y', strtotime($today))]);
+                exit;
+
+            } elseif ($existing_in !== null && ($existing_out === null)) {
+                // Session Time Out (in exists but out missing)
+                $update_query = "UPDATE {$attendanceTable} SET {$out_col} = :time_out WHERE {$idColumn} = :code AND date = :today";
+                $update_stmt = $db->prepare($update_query);
+                $update_stmt->bindParam(':time_out', $current_time, PDO::PARAM_STR);
+                $update_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+                $update_stmt->bindParam(':today', $today, PDO::PARAM_STR);
+
+                if (!$update_stmt->execute()) {
+                    throw new Exception('Failed to record Time Out. Please try again.');
+                }
+
+                $db->commit();
+
+                // Notifications for students only
+                if (!$isTeacher) {
+                    $emailDetails = $prepareEmailDetails();
+                    try { sendAttendanceEmail($emailConfig, $student, 'time_out', $emailDetails); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); }
+                    try { sendAttendanceSms($db, $student, 'time_out', $emailDetails); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); }
+                }
+
+                // Calculate duration using session in time
+                $time_in_val = $existing_in;
+                $time_out = strtotime($current_time);
+                $time_in_ts = strtotime($time_in_val);
+                $duration_seconds = $time_out - $time_in_ts;
+                $hours = floor($duration_seconds / 3600);
+                $minutes = floor(($duration_seconds % 3600) / 60);
+                $duration = sprintf('%d hours %d minutes', $hours, $minutes);
+
+                ob_end_clean();
+                echo json_encode([
+                    'success' => true,
+                    'status' => 'time_out',
+                    'session' => $session,
+                    'message' => $userLabel . ' Time Out recorded successfully!',
+                    'time_out' => date('h:i A', strtotime($current_time)),
+                    'duration' => $duration,
+                    'date' => date('F j, Y', strtotime($today))
+                ]);
+                exit;
+
+            } else {
+                // Already completed for this session
+                $db->commit();
+                $in_display = $existing_record[$in_col] ?? 'N/A';
+                $out_display = $existing_record[$out_col] ?? 'N/A';
+                throw new Exception('Attendance already completed for today. Time In: ' . date('h:i A', strtotime($in_display)) . ', Time Out: ' . ($out_display !== 'N/A' ? date('h:i A', strtotime($out_display)) : 'N/A'));
+            }
         }
         
     } catch (Exception $e) {

@@ -7,18 +7,12 @@
 session_start();
 require_once '../admin/config.php';
 require_once '../includes/qrcode_helper.php';
+require_once __DIR__ . '/../includes/auth_middleware.php';
 
 header('Content-Type: application/json');
 
-// Check admin authentication
-if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-    http_response_code(401);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Unauthorized access'
-    ]);
-    exit;
-}
+// Enforce admin role
+requireRole([ROLE_ADMIN]);
 
 // Check request method
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

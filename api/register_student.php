@@ -6,6 +6,9 @@
 
 // Security: Check admin authentication
 session_start();
+require_once __DIR__ . '/../includes/auth_middleware.php';
+// Require admin role for registration
+requireRole([ROLE_ADMIN]);
 
 // Suppress ALL output except JSON
 error_reporting(0);
@@ -20,15 +23,7 @@ ob_start();
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-cache, must-revalidate');
 
-// Admin access check
-if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-    ob_end_clean();
-    echo json_encode([
-        'success' => false,
-        'message' => 'Access Denied. Only administrators can register students.'
-    ]);
-    exit();
-}
+// access enforced by requireRole above
 
 require_once __DIR__ . '/../includes/database.php';
 

@@ -7,6 +7,7 @@ session_start();
 
 // Include main database configuration and initialize connection
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/schema_validator.php';
 
 // Initialize database connection
 $database = new Database();
@@ -15,6 +16,16 @@ $pdo = $database->getConnection();
 // Check if database connection failed
 if (!$pdo) {
     die("Database connection failed. Please check your database configuration.");
+}
+
+// Startup schema check for admin area: ensure core tables exist
+$admin_required = [
+    'tables' => ['admin_users', 'students', 'attendance', 'sections']
+];
+$missing = validate_schema_requirements($pdo, $admin_required);
+if (!empty($missing)) {
+    // Stop admin pages and show a concise message
+    die('Database schema incomplete. Missing: ' . implode(', ', $missing) . '. Please run migrations.');
 }
 
 // Admin-specific configuration

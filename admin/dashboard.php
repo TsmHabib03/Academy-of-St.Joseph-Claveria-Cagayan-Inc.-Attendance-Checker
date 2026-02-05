@@ -13,19 +13,27 @@ $pageIcon = 'home';
 function getDashboardData($pdo) {
     $data = [];
     
+    // Common exclusion clause
+    $exclusionClause = " AND (class NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6') AND class NOT LIKE 'Kinder%') ";
+    $studentExclusionClause = " JOIN students s ON a.lrn = s.lrn WHERE (s.class NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6') AND s.class NOT LIKE 'Kinder%') ";
+    
     try {
         // 1. STAT CARDS DATA
         // Total students
-        $stmt = $pdo->query("SELECT COUNT(*) as total FROM students");
+        $stmt = $pdo->query("SELECT COUNT(*) as total FROM students WHERE 1=1" . $exclusionClause);
         $data['totalStudents'] = (int)$stmt->fetch()['total'];
         
         // Today's attendance
-        $stmt = $pdo->prepare("
-            SELECT 
-                COUNT(DISTINCT lrn) as present
-            FROM attendance 
-            WHERE date = CURDATE() AND time_in IS NOT NULL
-        ");
+            $stmt = $pdo->prepare("
+                SELECT 
+                    COUNT(DISTINCT a.lrn) as present
+                FROM attendance a
+                JOIN students s ON a.lrn = s.lrn
+                WHERE a.date = CURDATE() AND (
+                    a.morning_time_in IS NOT NULL OR a.afternoon_time_in IS NOT NULL OR a.time_in IS NOT NULL
+                )
+                AND (s.class NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6') AND s.class NOT LIKE 'Kinder%')
+            ");
         $stmt->execute();
         $todayStats = $stmt->fetch(PDO::FETCH_ASSOC);
         $data['presentToday'] = (int)$todayStats['present'];
@@ -49,10 +57,11 @@ function getDashboardData($pdo) {
             )
             SELECT 
                 dates.date,
-                COALESCE(COUNT(DISTINCT a.lrn), 0) as present,
-                (SELECT COUNT(*) FROM students) - COALESCE(COUNT(DISTINCT a.lrn), 0) as absent
+                COALESCE(COUNT(DISTINCT CASE WHEN (s.class NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6') AND s.class NOT LIKE 'Kinder%') AND (a.morning_time_in IS NOT NULL OR a.afternoon_time_in IS NOT NULL OR a.time_in IS NOT NULL) THEN a.lrn END), 0) as present,
+                (SELECT COUNT(*) FROM students WHERE 1=1 " . $exclusionClause . ") - COALESCE(COUNT(DISTINCT CASE WHEN (s.class NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6') AND s.class NOT LIKE 'Kinder%') AND (a.morning_time_in IS NOT NULL OR a.afternoon_time_in IS NOT NULL OR a.time_in IS NOT NULL) THEN a.lrn END), 0) as absent
             FROM dates
             LEFT JOIN attendance a ON dates.date = a.date
+            LEFT JOIN students s ON a.lrn = s.lrn
             GROUP BY dates.date
             ORDER BY dates.date ASC
         ");
@@ -63,10 +72,11 @@ function getDashboardData($pdo) {
         $stmt = $pdo->prepare("
             SELECT 
                 COALESCE(s.section, 'No Section') as section,
-                COUNT(DISTINCT CASE WHEN a.date = CURDATE() AND a.time_in IS NOT NULL THEN a.lrn END) as present,
+                COUNT(DISTINCT CASE WHEN a.date = CURDATE() AND (a.morning_time_in IS NOT NULL OR a.afternoon_time_in IS NOT NULL OR a.time_in IS NOT NULL) THEN a.lrn END) as present,
                 COUNT(DISTINCT s.lrn) as total
             FROM students s
             LEFT JOIN attendance a ON s.lrn = a.lrn
+            WHERE 1=1 " . str_replace('class', 's.class', $exclusionClause) . "
             GROUP BY s.section
             HAVING total > 0
             ORDER BY section
@@ -82,8 +92,8 @@ function getDashboardData($pdo) {
                 s.first_name,
                 s.last_name,
                 COALESCE(s.section, 'N/A') as section,
-                a.time_in,
-                a.time_out,
+                COALESCE(a.morning_time_in, a.afternoon_time_in, a.time_in) AS time_in,
+                COALESCE(a.morning_time_out, a.afternoon_time_out, a.time_out) AS time_out,
                 a.date,
                 CASE 
                     WHEN a.time_out IS NULL AND a.date < CURDATE() THEN 'incomplete'
@@ -93,6 +103,7 @@ function getDashboardData($pdo) {
                 a.created_at
             FROM attendance a
             JOIN students s ON a.lrn = s.lrn
+            WHERE 1=1 " . str_replace('class', 's.class', $exclusionClause) . "
             ORDER BY a.created_at DESC
             LIMIT 10
         ");
@@ -108,12 +119,13 @@ function getDashboardData($pdo) {
                 s.last_name,
                 COALESCE(s.section, 'N/A') as section,
                 a.date,
-                a.time_in,
+                COALESCE(a.morning_time_in, a.afternoon_time_in, a.time_in) AS time_in,
                 DATEDIFF(CURDATE(), a.date) as days_ago
             FROM attendance a
             JOIN students s ON a.lrn = s.lrn
             WHERE a.time_out IS NULL 
             AND a.date < CURDATE()
+            " . str_replace('class', 's.class', $exclusionClause) . "
             ORDER BY a.date DESC
             LIMIT 15
         ");
@@ -121,10 +133,10 @@ function getDashboardData($pdo) {
         $data['needsAttention'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // 6. ADDITIONAL STATS
-        $stmt = $pdo->query("SELECT COUNT(*) as total FROM attendance");
+        $stmt = $pdo->query("SELECT COUNT(*) as total FROM attendance a JOIN students s ON a.lrn = s.lrn WHERE 1=1 " . str_replace('class', 's.class', $exclusionClause));
         $data['totalRecords'] = (int)$stmt->fetch()['total'];
         
-        $stmt = $pdo->query("SELECT COUNT(DISTINCT COALESCE(section, 'default')) as total FROM students");
+        $stmt = $pdo->query("SELECT COUNT(DISTINCT COALESCE(section, 'default')) as total FROM students WHERE 1=1 " . $exclusionClause);
         $data['activeSections'] = (int)$stmt->fetch()['total'];
         
         return $data;

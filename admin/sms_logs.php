@@ -94,9 +94,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "Phone number is required for test.";
             $messageType = "error";
         } else {
-            // In real implementation, this would send a test SMS
-            $message = "Test SMS would be sent to: {$testNumber} (SMS gateway not configured)";
-            $messageType = "info";
+            require_once '../includes/sms_sender.php';
+            try {
+                $smsSender = new SmsSender($pdo);
+                $result = $smsSender->send($testNumber, "Test SMS from AttendEase System. If you receive this, the gateway is working correctly.", "admin", $currentAdmin['id'], "test");
+                
+                if ($result['success']) {
+                    $message = "Test SMS sent successfully to {$testNumber}!";
+                    $messageType = "success";
+                } else {
+                    $message = "Test SMS failed: " . ($result['message'] ?? 'Unknown error');
+                    $messageType = "error";
+                }
+            } catch (Exception $e) {
+                $message = "Error sending test SMS: " . $e->getMessage();
+                $messageType = "error";
+            }
         }
     }
 }
@@ -427,7 +440,7 @@ include 'includes/header_modern.php';
                         <i class="fas fa-check-circle"></i>
                         <span>SMS Gateway Active</span>
                     </div>
-                    <p>Provider: <?php echo ucfirst($smsConfig['gateway'] ?? 'Not set'); ?></p>
+                    <p>Provider: <?php echo ucfirst($smsConfig['provider'] ?? 'Not set'); ?></p>
                 <?php else: ?>
                     <div class="status-indicator inactive">
                         <i class="fas fa-times-circle"></i>

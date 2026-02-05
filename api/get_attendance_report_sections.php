@@ -1,4 +1,12 @@
 <?php
+<?php
+require_once __DIR__ . '/bootstrap.php';
+// Require admin or teacher for attendance reports
+api_require_schema_or_exit($pdo, [
+    'tables' => ['attendance', 'students']
+]);
+api_require_roles([ROLE_ADMIN, ROLE_TEACHER]);
+
 /**
  * Get Attendance Report - Section-Based
  * Returns attendance records filtered by section, date range, and student search
@@ -27,20 +35,22 @@ try {
         throw new Exception('Invalid date format. Use YYYY-MM-DD');
     }
     
-    // Build query
-    $query = "SELECT 
-                a.id,
-                a.lrn,
-                a.section,
-                a.date,
-                a.time_in,
-                a.time_out,
-                a.status,
-                CONCAT(s.first_name, ' ', IFNULL(CONCAT(s.middle_name, ' '), ''), s.last_name) as student_name,
-                s.email as parent_email
-              FROM attendance a
-              INNER JOIN students s ON a.lrn = s.lrn
-              WHERE a.date BETWEEN :start_date AND :end_date";
+        // Build query - prefer V3 columns (morning/afternoon) with fallback to legacy `time_in`/`time_out`.
+        $query = "SELECT 
+                                a.id,
+                                a.lrn,
+                                a.section,
+                                a.date,
+                                COALESCE(a.morning_time_in, a.afternoon_time_in, a.time_in) AS resolved_time_in,
+                                COALESCE(a.morning_time_out, a.afternoon_time_out, a.time_out) AS resolved_time_out,
+                                a.status,
+                                CONCAT(s.first_name, ' ', IFNULL(CONCAT(s.middle_name, ' '), ''), s.last_name) as student_name,
+                                s.email as parent_email
+                            FROM attendance a
+                            INNER JOIN students s ON a.lrn = s.lrn
+                            WHERE a.date BETWEEN :start_date AND :end_date
+                            AND s.class NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6') 
+                            AND s.class NOT LIKE 'Kinder%'";
     
     $params = [
         ':start_date' => $start_date,
@@ -82,8 +92,8 @@ try {
     $sections_set = [];
     
     foreach ($records as $record) {
-        $time_in_obj = $record['time_in'] ? strtotime($record['time_in']) : null;
-        $time_out_obj = $record['time_out'] ? strtotime($record['time_out']) : null;
+        $time_in_obj = $record['resolved_time_in'] ? strtotime($record['resolved_time_in']) : null;
+        $time_out_obj = $record['resolved_time_out'] ? strtotime($record['resolved_time_out']) : null;
         
         // Calculate duration
         $duration = '-';
@@ -110,8 +120,8 @@ try {
             'section' => $record['section'],
             'date' => $record['date'],
             'date_formatted' => date('F j, Y', strtotime($record['date'])),
-            'time_in' => $record['time_in'] ? date('h:i A', strtotime($record['time_in'])) : null,
-            'time_out' => $record['time_out'] ? date('h:i A', strtotime($record['time_out'])) : null,
+            'time_in' => $record['resolved_time_in'] ? date('h:i A', strtotime($record['resolved_time_in'])) : null,
+            'time_out' => $record['resolved_time_out'] ? date('h:i A', strtotime($record['resolved_time_out'])) : null,
             'duration' => $duration,
             'status' => $record['status'],
             'parent_email' => $record['parent_email']

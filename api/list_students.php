@@ -1,4 +1,8 @@
 <?php
+require_once __DIR__ . '/bootstrap.php';
+// Require admin/teacher/staff for student directory
+api_require_schema_or_exit($pdo, ['tables' => ['students']]);
+api_require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_STAFF]);
 require_once __DIR__ . '/../includes/database.php';
 
 $database = new Database();

@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hasLastLogin = $checkLastLogin > 0;
                 
                 // Build query based on available columns
-                $selectFields = "id, username, password, email";
+                $selectFields = "id, username, password, email, role";
                 if ($hasIsActive) {
                     $selectFields .= ", is_active";
                 }
@@ -80,6 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['admin_id'] = $admin['id'];
                         $_SESSION['admin_username'] = $admin['username'];
                         $_SESSION['admin_email'] = $admin['email'] ?? '';
+                        // Store role in session (fallback to 'admin' if DB missing role)
+                        $_SESSION['admin_role'] = $admin['role'] ?? 'admin';
                         $_SESSION['login_attempts'] = 0;
                         $_SESSION['lockout_time'] = 0;
 

@@ -1,15 +1,12 @@
 <?php
 require_once '../admin/config.php';
 require_once '../includes/qrcode_helper.php';
+require_once __DIR__ . '/../includes/auth_middleware.php';
 
 header('Content-Type: application/json');
 
-// Check if admin is logged in
-if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-    exit;
-}
+// Enforce admin role
+requireRole([ROLE_ADMIN]);
 
 // Only allow POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

@@ -1,5 +1,8 @@
 <?php
-header('Content-Type: application/json');
+require_once __DIR__ . '/bootstrap.php';
+// Require admin or teacher
+api_require_schema_or_exit($pdo, ['tables' => ['students']]);
+api_require_roles([ROLE_ADMIN, ROLE_TEACHER]);
 require_once '../includes/database.php';
 
 try {

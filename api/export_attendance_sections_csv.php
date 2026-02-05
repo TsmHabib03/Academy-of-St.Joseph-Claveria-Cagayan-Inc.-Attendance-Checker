@@ -4,6 +4,12 @@
  * Generates CSV file with attendance records
  */
 
+require_once __DIR__ . '/bootstrap.php';
+// Require admin role to export CSV
+api_require_schema_or_exit($pdo, [
+    'tables' => ['attendance', 'students']
+]);
+api_require_admin();
 require_once '../includes/database.php';
 
 try {
@@ -34,18 +40,19 @@ try {
     header('Expires: 0');
     
     // Build query
-    $query = "SELECT 
-                a.lrn,
-                CONCAT(s.first_name, ' ', IFNULL(CONCAT(s.middle_name, ' '), ''), s.last_name) as student_name,
-                a.section,
-                a.date,
-                a.time_in,
-                a.time_out,
-                a.status,
-                s.email as parent_email
-              FROM attendance a
-              INNER JOIN students s ON a.lrn = s.lrn
-              WHERE a.date BETWEEN :start_date AND :end_date";
+        // Prefer V3 columns (morning/afternoon) with fallback to legacy `time_in`/`time_out`.
+        $query = "SELECT 
+                                a.lrn,
+                                CONCAT(s.first_name, ' ', IFNULL(CONCAT(s.middle_name, ' '), ''), s.last_name) as student_name,
+                                a.section,
+                                a.date,
+                                COALESCE(a.morning_time_in, a.afternoon_time_in, a.time_in) AS resolved_time_in,
+                                COALESCE(a.morning_time_out, a.afternoon_time_out, a.time_out) AS resolved_time_out,
+                                a.status,
+                                s.email as parent_email
+                            FROM attendance a
+                            INNER JOIN students s ON a.lrn = s.lrn
+                            WHERE a.date BETWEEN :start_date AND :end_date";
     
     $params = [
         ':start_date' => $start_date,
@@ -122,14 +129,14 @@ try {
         $day_name = date('l', $date_obj);
         $date_formatted = date('M j, Y', $date_obj);
         
-        $time_in = $row['time_in'] ? date('h:i A', strtotime($row['time_in'])) : '-';
-        $time_out = $row['time_out'] ? date('h:i A', strtotime($row['time_out'])) : '-';
+        $time_in = $row['resolved_time_in'] ? date('h:i A', strtotime($row['resolved_time_in'])) : '-';
+        $time_out = $row['resolved_time_out'] ? date('h:i A', strtotime($row['resolved_time_out'])) : '-';
         
         // Calculate duration
         $duration = '-';
-        if ($row['time_in'] && $row['time_out']) {
-            $time_in_obj = strtotime($row['time_in']);
-            $time_out_obj = strtotime($row['time_out']);
+        if ($row['resolved_time_in'] && $row['resolved_time_out']) {
+            $time_in_obj = strtotime($row['resolved_time_in']);
+            $time_out_obj = strtotime($row['resolved_time_out']);
             $duration_seconds = $time_out_obj - $time_in_obj;
             $hours = floor($duration_seconds / 3600);
             $minutes = floor(($duration_seconds % 3600) / 60);

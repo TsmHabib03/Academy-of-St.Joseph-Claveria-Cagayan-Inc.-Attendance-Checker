@@ -27,10 +27,12 @@ $searchTerm = $_GET['search'] ?? '';
 
 // Fetch grade levels for filter
 try {
-    $gradeLevelsStmt = $pdo->query("SELECT DISTINCT grade_level FROM sections ORDER BY 
+    $gradeLevelsStmt = $pdo->query("SELECT DISTINCT grade_level FROM sections 
+        WHERE grade_level NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6')
+        AND grade_level NOT LIKE 'Kinder%'
+        ORDER BY 
         CASE 
             WHEN grade_level LIKE 'Grade%' THEN CAST(SUBSTRING(grade_level, 7) AS UNSIGNED)
-            WHEN grade_level LIKE 'Kinder%' THEN 0
             ELSE 999 
         END");
     $gradeLevels = $gradeLevelsStmt->fetchAll(PDO::FETCH_COLUMN);

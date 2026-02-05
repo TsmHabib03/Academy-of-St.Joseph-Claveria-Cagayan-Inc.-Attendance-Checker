@@ -19,73 +19,29 @@ return [
     // =========================================================================
     
     'enabled' => true, // Set to true to enable SMS notifications
-    'provider' => 'semaphore', // Options: 'semaphore', 'twilio', 'vonage', 'custom'
+    'enabled' => true, // Set to true to enable SMS notifications
+    'provider' => 'custom', // Switched to 'custom' for Android SMS Gateway
     
-    // When to send SMS notifications
-    'send_on_late' => true,
-    'send_on_absent' => true,
-    'send_on_time_in' => false, // Can be spammy, disabled by default
-    'send_on_time_out' => false,
-    'send_behavior_alerts' => true,
-    
-    // Rate limiting
-    'max_sms_per_day_per_number' => 5, // Prevent spam
-    'queue_enabled' => true, // Queue SMS for batch sending
-    
-    // =========================================================================
-    // SEMAPHORE CONFIGURATION (Recommended for Philippines)
-    // https://semaphore.co/
-    // =========================================================================
-    
-    'semaphore' => [
-        'api_key' => '', // Your Semaphore API key
-        'sender_name' => 'ASJ-ATTEND', // Max 11 characters, alphanumeric
-        'api_url' => 'https://api.semaphore.co/api/v4/messages',
-        
-        // Optional: Priority messages (costs more but faster delivery)
-        'use_priority' => false,
-    ],
-    
-    // =========================================================================
-    // TWILIO CONFIGURATION (International)
-    // https://www.twilio.com/
-    // =========================================================================
-    
-    'twilio' => [
-        'account_sid' => '', // Your Twilio Account SID
-        'auth_token' => '', // Your Twilio Auth Token
-        'from_number' => '', // Your Twilio phone number (e.g., +1234567890)
-    ],
-    
-    // =========================================================================
-    // VONAGE/NEXMO CONFIGURATION (International)
-    // https://www.vonage.com/
-    // =========================================================================
-    
-    'vonage' => [
-        'api_key' => '',
-        'api_secret' => '',
-        'from_name' => 'ASJ-ATTEND',
-    ],
-    
-    // =========================================================================
-    // CUSTOM API CONFIGURATION
-    // For other SMS providers
-    // =========================================================================
-    
+    // ... (lines 24-75 unchanged)
+
     'custom' => [
-        'api_url' => '', // POST endpoint
-        'api_key' => '',
+        // REPLACE WITH YOUR PHONE'S LOCAL IP ADDRESS
+        // Example: http://192.168.1.5:8080/v1/sms
+        // Make sure your PC and Phone are on the SAME WiFi network
+        'api_url' => 'http://192.168.1.XXX:8080/v1/sms', 
+        
+        'api_key' => '', // Leave empty if your app doesn't use one, or put the password here
         'method' => 'POST',
         'headers' => [
-            'Content-Type' => 'application/json',
-            // Add custom headers as needed
+            'Content-Type: application/json',
+            // 'Authorization: Bearer YOUR_TOKEN' // Uncomment if needed
         ],
         // Parameter mapping - maps our fields to the API's expected fields
+        // Adjust these to match your Android App's API requirements
         'param_mapping' => [
-            'to' => 'mobile', // Field name for recipient number
-            'message' => 'message', // Field name for message content
-            'sender' => 'sender_id', // Field name for sender ID
+            'to' => 'phone',       // Most apps use 'phone' or 'number'
+            'message' => 'message', // Most apps use 'message'
+            'sender' => 'sender',   // Optional
         ],
     ],
     

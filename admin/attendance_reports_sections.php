@@ -824,7 +824,7 @@ include 'includes/header_modern.php';
                         <option value="">All Sections</option>
                         <?php
                         try {
-                            $stmt = $pdo->query("SELECT section_name FROM sections WHERE is_active = 1 ORDER BY section_name");
+                            $stmt = $pdo->query("SELECT section_name FROM sections WHERE is_active = 1 AND grade_level NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6') AND grade_level NOT LIKE 'Kinder%' ORDER BY section_name");
                             while ($row = $stmt->fetch()) {
                                 echo "<option value='" . htmlspecialchars($row['section_name']) . "'>" . htmlspecialchars($row['section_name']) . "</option>";
                             }

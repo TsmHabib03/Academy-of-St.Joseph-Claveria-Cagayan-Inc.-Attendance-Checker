@@ -133,6 +133,8 @@ try {
               (SELECT COUNT(*) FROM students st WHERE st.section = s.section_name OR st.class = s.section_name) as student_count,
               CASE WHEN s.is_active = 1 THEN 'active' ELSE 'inactive' END as status
               FROM sections s
+              WHERE s.grade_level NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6')
+              AND s.grade_level NOT LIKE 'Kinder%'
               ORDER BY s.section_name";
     $stmt = $pdo->query($query);
     $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -488,14 +490,9 @@ include 'includes/header_modern.php';
                                         <span class="grade-badge grade-badge-enhanced">
                                             <i class="fas fa-graduation-cap"></i>
                                             <span>
-                                                <?php 
-                                                // Display grade level properly
+                                                <?php
                                                 $gradeLevel = $section['grade_level'];
-                                                if (strtoupper($gradeLevel) === 'K') {
-                                                    echo 'Kindergarten';
-                                                } else {
-                                                    echo 'Grade ' . htmlspecialchars($gradeLevel);
-                                                }
+                                                echo 'Grade ' . htmlspecialchars($gradeLevel);
                                                 ?>
                                             </span>
                                         </span>
@@ -626,17 +623,7 @@ include 'includes/header_modern.php';
                             <label for="grade_level" class="form-label">Grade Level</label>
                             <select name="grade_level" id="grade_level" class="form-select">
                                 <option value="">Select Grade Level</option>
-                                <optgroup label="Early Childhood">
-                                    <option value="K">Kindergarten</option>
-                                </optgroup>
-                                <optgroup label="Elementary">
-                                    <option value="1">Grade 1</option>
-                                    <option value="2">Grade 2</option>
-                                    <option value="3">Grade 3</option>
-                                    <option value="4">Grade 4</option>
-                                    <option value="5">Grade 5</option>
-                                    <option value="6">Grade 6</option>
-                                </optgroup>
+                                <!-- Removed Early Childhood and Elementary optgroups -->
                                 <optgroup label="Junior High School">
                                     <option value="7">Grade 7</option>
                                     <option value="8">Grade 8</option>
