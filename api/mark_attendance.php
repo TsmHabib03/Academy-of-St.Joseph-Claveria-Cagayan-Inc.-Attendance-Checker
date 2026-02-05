@@ -338,6 +338,15 @@ try {
     if (empty($scannedCode)) {
         throw new Exception('QR code data is required');
     }
+
+    // Optional: allow scanner to supply section and assigned session directly
+    $provided_section = trim($_POST['section'] ?? $_POST['section_name'] ?? '');
+    $provided_session_raw = trim(strtolower($_POST['assigned_session'] ?? $_POST['session'] ?? ''));
+    $provided_session = '';
+    if ($provided_session_raw !== '') {
+        if (strpos($provided_session_raw, 'pm') !== false || strpos($provided_session_raw, 'afternoon') !== false) $provided_session = 'afternoon';
+        elseif (strpos($provided_session_raw, 'am') !== false || strpos($provided_session_raw, 'morning') !== false) $provided_session = 'morning';
+    }
     
     // Determine if this is a student LRN (11-13 digits) or teacher employee_id
     $isStudent = preg_match('/^[0-9]{11,13}$/', $scannedCode);
@@ -385,6 +394,15 @@ try {
     
     // Set common variables for compatibility
     $student = $user; // Use $student variable for backward compatibility
+    // If scanner provided a section, prefer it over DB value
+    if (!empty($provided_section)) {
+        $student['section'] = $provided_section;
+        $student['class'] = $provided_section;
+    }
+    // If scanner provided an assigned session, set it (will be used later)
+    if (!empty($provided_session)) {
+        $student['session'] = $provided_session;
+    }
     $lrn = $scannedCode;
     
     // Get current date and time
@@ -404,6 +422,42 @@ try {
         // Determine student's section/grade for schedule lookup
         $student_section_name = trim($student['section'] ?? $student['class'] ?? '');
         $student_grade = trim($student['class'] ?? '');
+
+        // Determine assigned session for the student (prefer explicit student field, fallback to sections table)
+        $assigned_session = null; // 'morning' or 'afternoon'
+        $auto_marked_absent = null; // will hold 'morning' or 'afternoon' when we auto-mark
+        // section value used for inserts when auto-marking absent
+        $section_value = $student['section'] ?? $student['class'] ?? '';
+        $possibleKeys = ['session','shift','am_pm','time_of_day'];
+        foreach ($possibleKeys as $k) {
+            if (!empty($student[$k])) {
+                $v = strtolower(trim($student[$k]));
+                if (strpos($v, 'pm') !== false || strpos($v, 'afternoon') !== false) { $assigned_session = 'afternoon'; break; }
+                if (strpos($v, 'am') !== false || strpos($v, 'morning') !== false) { $assigned_session = 'morning'; break; }
+            }
+        }
+
+        if (!$assigned_session && !empty($student_section_name)) {
+            try {
+                // Use SELECT * to avoid errors if optional columns (like `session`) are missing
+                $sec_sql = "SELECT * FROM sections WHERE section_name = :section_name LIMIT 1";
+                $sec_stmt = $db->prepare($sec_sql);
+                $sec_stmt->bindParam(':section_name', $student_section_name, PDO::PARAM_STR);
+                $sec_stmt->execute();
+                $sec_row = $sec_stmt->fetch(PDO::FETCH_ASSOC);
+                if ($sec_row) {
+                    foreach ($possibleKeys as $k) {
+                        if (!empty($sec_row[$k])) {
+                            $v = strtolower(trim($sec_row[$k]));
+                            if (strpos($v, 'pm') !== false || strpos($v, 'afternoon') !== false) { $assigned_session = 'afternoon'; break; }
+                            if (strpos($v, 'am') !== false || strpos($v, 'morning') !== false) { $assigned_session = 'morning'; break; }
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('Section session lookup failed: '.$e->getMessage());
+            }
+        }
 
         // Lookup applicable schedule: prefer section match, then grade_level, then default
         $schedule = null;
@@ -439,7 +493,7 @@ try {
             ];
         }
 
-        // Determine session (morning|afternoon) based on current time and schedule
+        // Determine session (morning|afternoon) based on assigned session (if available) or current time and schedule
         $t = strtotime($current_time);
         $morning_start = strtotime($schedule['morning_start']);
         $morning_end = strtotime($schedule['morning_end']);
@@ -448,22 +502,84 @@ try {
         $afternoon_end = strtotime($schedule['afternoon_end']);
         $afternoon_late = strtotime($schedule['afternoon_late_after']);
 
-        if ($t >= $morning_start && $t <= $morning_end) {
-            $session = 'morning';
-            $in_col = 'morning_time_in';
-            $out_col = 'morning_time_out';
-            $is_late = ($t > $morning_late);
-        } elseif ($t >= $afternoon_start && $t <= $afternoon_end) {
-            $session = 'afternoon';
-            $in_col = 'afternoon_time_in';
-            $out_col = 'afternoon_time_out';
-            $is_late = ($t > $afternoon_late);
+        $session = null;
+        $in_col = 'morning_time_in';
+        $out_col = 'morning_time_out';
+        $is_late = false;
+
+        // If student has an assigned session, prefer that
+        if ($assigned_session) {
+            $session = $assigned_session;
+            if ($session === 'morning') {
+                $in_col = 'morning_time_in'; $out_col = 'morning_time_out'; $is_late = ($t > $morning_late);
+            } else {
+                $in_col = 'afternoon_time_in'; $out_col = 'afternoon_time_out'; $is_late = ($t > $afternoon_late);
+            }
+
+            // Check if current time falls within the assigned session window
+            $in_window = ($session === 'morning') ? ($t >= $morning_start && $t <= $morning_end) : ($t >= $afternoon_start && $t <= $afternoon_end);
+            if (!$in_window) {
+                // Assigned session was missed. Auto-mark the assigned session as absent (insert/update attendance row with NULL times)
+                $missed_session = $session;
+                $current_session_by_time = ($t >= $morning_start && $t <= $morning_end) ? 'morning' : (($t >= $afternoon_start && $t <= $afternoon_end) ? 'afternoon' : 'none');
+                $auto_marked_absent = null;
+
+                if (!$isTeacher) {
+                    // Lock row for today and upsert absent marker
+                    $lockSql = "SELECT * FROM attendance WHERE lrn = :code AND date = :today FOR UPDATE";
+                    $lockStmt = $db->prepare($lockSql);
+                    $lockStmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+                    $lockStmt->bindParam(':today', $today, PDO::PARAM_STR);
+                    $lockStmt->execute();
+                    $row = $lockStmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($row) {
+                        if ($missed_session === 'morning') {
+                            $upd = "UPDATE attendance SET morning_time_in = NULL, morning_time_out = NULL, is_late_morning = 0 WHERE lrn = :code AND date = :today";
+                        } else {
+                            $upd = "UPDATE attendance SET afternoon_time_in = NULL, afternoon_time_out = NULL, is_late_afternoon = 0 WHERE lrn = :code AND date = :today";
+                        }
+                        $uStmt = $db->prepare($upd);
+                        $uStmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+                        $uStmt->bindParam(':today', $today, PDO::PARAM_STR);
+                        $uStmt->execute();
+                        $auto_marked_absent = $missed_session;
+                    } else {
+                        if ($missed_session === 'morning') {
+                            $ins = "INSERT INTO attendance (lrn, section, date, morning_time_in, morning_time_out, is_late_morning, is_late_afternoon) VALUES (:code, :section, :date, NULL, NULL, 0, 0)";
+                        } else {
+                            $ins = "INSERT INTO attendance (lrn, section, date, afternoon_time_in, afternoon_time_out, is_late_morning, is_late_afternoon) VALUES (:code, :section, :date, NULL, NULL, 0, 0)";
+                        }
+                        $iStmt = $db->prepare($ins);
+                        $iStmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+                        $iStmt->bindParam(':section', $section_value, PDO::PARAM_STR);
+                        $iStmt->bindParam(':date', $today, PDO::PARAM_STR);
+                        $iStmt->execute();
+                        $auto_marked_absent = $missed_session;
+                    }
+                }
+
+                // Continue processing the current scan (we do not exit). The rest of flow will record the current session if applicable.
+            }
         } else {
-            // Out-of-schedule: default to morning logic
-            $session = 'morning';
-            $in_col = 'morning_time_in';
-            $out_col = 'morning_time_out';
-            $is_late = ($t > $morning_late);
+            // No assigned session, determine by current time
+            if ($t >= $morning_start && $t <= $morning_end) {
+                $session = 'morning';
+                $in_col = 'morning_time_in';
+                $out_col = 'morning_time_out';
+                $is_late = ($t > $morning_late);
+            } elseif ($t >= $afternoon_start && $t <= $afternoon_end) {
+                $session = 'afternoon';
+                $in_col = 'afternoon_time_in';
+                $out_col = 'afternoon_time_out';
+                $is_late = ($t > $afternoon_late);
+            } else {
+                // Out-of-schedule: default to morning logic
+                $session = 'morning';
+                $in_col = 'morning_time_in';
+                $out_col = 'morning_time_out';
+                $is_late = ($t > $morning_late);
+            }
         }
 
         // Use SELECT ... FOR UPDATE to lock the row and prevent race conditions
@@ -479,6 +595,7 @@ try {
         $existing_record = $check_stmt->fetch(PDO::FETCH_ASSOC);
 
         // Normalize section value to store in attendance row (backwards-compatible)
+        // (already initialized earlier for auto-marking but keep here to ensure consistency)
         $section_value = $student['section'] ?? $student['class'] ?? '';
 
         // Helper: prepare email details
@@ -527,6 +644,8 @@ try {
                 'success' => true,
                 'status' => 'time_in',
                 'session' => $session,
+                'assigned_session' => $assigned_session,
+                'auto_marked_absent' => $auto_marked_absent,
                 'late' => $is_late,
                 'message' => $userLabel . ' Time In recorded successfully!',
                 'student_name' => ($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''),
@@ -558,7 +677,7 @@ try {
                 if (!$isTeacher) { $emailDetails = $prepareEmailDetails(); try { sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); } try { sendAttendanceSms($db, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); } }
 
                 ob_end_clean();
-                echo json_encode(['success' => true, 'status' => 'time_in', 'session' => $session, 'late' => $is_late, 'message' => $userLabel . ' Time In recorded successfully!', 'time_in' => date('h:i A', strtotime($current_time)), 'date' => date('F j, Y', strtotime($today))]);
+                echo json_encode(['success' => true, 'status' => 'time_in', 'session' => $session, 'assigned_session' => $assigned_session, 'auto_marked_absent' => $auto_marked_absent, 'late' => $is_late, 'message' => $userLabel . ' Time In recorded successfully!', 'time_in' => date('h:i A', strtotime($current_time)), 'date' => date('F j, Y', strtotime($today))]);
                 exit;
 
             } elseif ($existing_in !== null && ($existing_out === null)) {
@@ -596,6 +715,8 @@ try {
                     'success' => true,
                     'status' => 'time_out',
                     'session' => $session,
+                    'auto_marked_absent' => $auto_marked_absent,
+                    'assigned_session' => $assigned_session,
                     'message' => $userLabel . ' Time Out recorded successfully!',
                     'time_out' => date('h:i A', strtotime($current_time)),
                     'duration' => $duration,
@@ -622,11 +743,14 @@ try {
     
 } catch (PDOException $e) {
     ob_end_clean();
+    // Log full DB error to server log
     error_log("Attendance DB Error: " . $e->getMessage());
+    // Return a slightly more detailed JSON response for local debugging
     echo json_encode([
         'success' => false,
         'status' => 'error',
-        'message' => 'Database error occurred. Please try again.'
+        'message' => 'Database error occurred. Please try again.',
+        'db_error' => $e->getMessage()
     ]);
 } catch (Exception $e) {
     ob_end_clean();

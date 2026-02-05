@@ -52,18 +52,64 @@ CREATE TABLE IF NOT EXISTS `attendance_schedules` (
   UNIQUE KEY `uq_grade_section` (`grade_level`, `section`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Add V3 columns to attendance (idempotent if server supports IF NOT EXISTS)
-ALTER TABLE `attendance`
-  ADD COLUMN IF NOT EXISTS `morning_time_in` TIME DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS `morning_time_out` TIME DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS `afternoon_time_in` TIME DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS `afternoon_time_out` TIME DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS `period_number` TINYINT UNSIGNED DEFAULT NULL,
-  ADD INDEX IF NOT EXISTS `idx_attendance_date_lrn` (`date`, `lrn`);
+-- Add V3 columns to attendance in an idempotent way for MySQL versions
+-- that do not support `ADD COLUMN IF NOT EXISTS` / `ADD INDEX IF NOT EXISTS`.
+-- We create small helper procedures and call them; safe to run multiple times.
 
--- Optional: ensure students and attendance have needed indexes
-ALTER TABLE `students`
-  ADD INDEX IF NOT EXISTS `idx_students_section` (`section`);
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS AddColumnIfNotExists//
+CREATE PROCEDURE AddColumnIfNotExists(
+  IN p_table VARCHAR(64),
+  IN p_col VARCHAR(64),
+  IN p_def VARCHAR(255)
+)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = p_table AND COLUMN_NAME = p_col
+  ) THEN
+    SET @sql = CONCAT('ALTER TABLE `', p_table, '` ADD COLUMN `', p_col, '` ', p_def);
+    PREPARE st FROM @sql; EXECUTE st; DEALLOCATE PREPARE st;
+  END IF;
+END//
+
+DROP PROCEDURE IF EXISTS AddIndexIfNotExists//
+CREATE PROCEDURE AddIndexIfNotExists(
+  IN p_table VARCHAR(64),
+  IN p_index VARCHAR(64),
+  IN p_cols VARCHAR(255)
+)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = p_table AND INDEX_NAME = p_index
+  ) THEN
+    SET @sql = CONCAT('ALTER TABLE `', p_table, '` ADD INDEX `', p_index, '` (', p_cols, ')');
+    PREPARE st FROM @sql; EXECUTE st; DEALLOCATE PREPARE st;
+  END IF;
+END//
+
+DELIMITER ;
+
+-- Add attendance columns (idempotent)
+CALL AddColumnIfNotExists('attendance','morning_time_in','TIME DEFAULT NULL');
+CALL AddColumnIfNotExists('attendance','morning_time_out','TIME DEFAULT NULL');
+CALL AddColumnIfNotExists('attendance','afternoon_time_in','TIME DEFAULT NULL');
+CALL AddColumnIfNotExists('attendance','afternoon_time_out','TIME DEFAULT NULL');
+CALL AddColumnIfNotExists('attendance','period_number','TINYINT UNSIGNED DEFAULT NULL');
+
+-- Add index on attendance if missing
+CALL AddIndexIfNotExists('attendance','idx_attendance_date_lrn','`date`,`lrn`');
+
+-- Optional: ensure students has needed index
+CALL AddIndexIfNotExists('students','idx_students_section','`section`');
+
+-- Cleanup helper procedures if desired
+DELIMITER //
+DROP PROCEDURE IF EXISTS AddColumnIfNotExists//
+DROP PROCEDURE IF EXISTS AddIndexIfNotExists//
+DELIMITER ;
 
 -- Restore checks
 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;

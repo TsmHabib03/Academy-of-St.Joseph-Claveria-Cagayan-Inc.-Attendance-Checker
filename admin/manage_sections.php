@@ -26,6 +26,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $section_name = trim($_POST['section_name'] ?? '');
             $grade_level = trim($_POST['grade_level'] ?? '');
             $adviser = trim($_POST['adviser'] ?? '');
+            $session = trim($_POST['session'] ?? '');
+            $am_start_time = trim($_POST['am_start_time'] ?? '');
+            $am_late_threshold = trim($_POST['am_late_threshold'] ?? '');
+            $am_end_time = trim($_POST['am_end_time'] ?? '');
+            $pm_start_time = trim($_POST['pm_start_time'] ?? '');
+            $pm_late_threshold = trim($_POST['pm_late_threshold'] ?? '');
+            $pm_end_time = trim($_POST['pm_end_time'] ?? '');
             $school_year = trim($_POST['school_year'] ?? '');
             
             if (empty($section_name)) {
@@ -39,8 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                 throw new Exception('Section already exists');
             }
             
-            $stmt = $pdo->prepare("INSERT INTO sections (section_name, grade_level, adviser, school_year) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$section_name, $grade_level, $adviser, $school_year]);
+            $stmt = $pdo->prepare("INSERT INTO sections (section_name, grade_level, adviser, school_year, session, am_start_time, am_late_threshold, am_end_time, pm_start_time, pm_late_threshold, pm_end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $session, $am_start_time, $am_late_threshold, $am_end_time, $pm_start_time, $pm_late_threshold, $pm_end_time]);
             
             logAdminActivity('ADD_SECTION', "Added section: $section_name");
             
@@ -52,6 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $section_name = trim($_POST['section_name'] ?? '');
             $grade_level = trim($_POST['grade_level'] ?? '');
             $adviser = trim($_POST['adviser'] ?? '');
+            $session = trim($_POST['session'] ?? '');
+            $am_start_time = trim($_POST['am_start_time'] ?? '');
+            $am_late_threshold = trim($_POST['am_late_threshold'] ?? '');
+            $am_end_time = trim($_POST['am_end_time'] ?? '');
+            $pm_start_time = trim($_POST['pm_start_time'] ?? '');
+            $pm_late_threshold = trim($_POST['pm_late_threshold'] ?? '');
+            $pm_end_time = trim($_POST['pm_end_time'] ?? '');
             $school_year = trim($_POST['school_year'] ?? '');
             $status = $_POST['status'] ?? 'active';
             $is_active = ($status === 'active') ? 1 : 0;
@@ -72,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $pdo->beginTransaction();
             
             // Update section
-            $stmt = $pdo->prepare("UPDATE sections SET section_name = ?, grade_level = ?, adviser = ?, school_year = ?, is_active = ? WHERE id = ?");
-            $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $is_active, $id]);
+            $stmt = $pdo->prepare("UPDATE sections SET section_name = ?, grade_level = ?, adviser = ?, school_year = ?, session = ?, am_start_time = ?, am_late_threshold = ?, am_end_time = ?, pm_start_time = ?, pm_late_threshold = ?, pm_end_time = ?, is_active = ? WHERE id = ?");
+            $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $session, $am_start_time, $am_late_threshold, $am_end_time, $pm_start_time, $pm_late_threshold, $pm_end_time, $is_active, $id]);
             
             // Update students' section field if section name changed
             if ($old_section['section_name'] !== $section_name) {
@@ -146,6 +160,13 @@ try {
         $section['adviser'] = $section['adviser'] ?? '';
         $section['school_year'] = $section['school_year'] ?? '';
         $section['grade_level'] = $section['grade_level'] ?? '';
+        $section['session'] = $section['session'] ?? '';
+        $section['am_start_time'] = $section['am_start_time'] ?? '';
+        $section['am_late_threshold'] = $section['am_late_threshold'] ?? '';
+        $section['am_end_time'] = $section['am_end_time'] ?? '';
+        $section['pm_start_time'] = $section['pm_start_time'] ?? '';
+        $section['pm_late_threshold'] = $section['pm_late_threshold'] ?? '';
+        $section['pm_end_time'] = $section['pm_end_time'] ?? '';
     }
     unset($section); // Break reference
 } catch (Exception $e) {
@@ -660,6 +681,43 @@ include 'includes/header_modern.php';
                                 placeholder="Teacher's name">
                         </div>
                     </div>
+
+                    <div class="form-grid two-col">
+                        <div class="form-group">
+                            <label for="session" class="form-label">Session</label>
+                            <select name="session" id="session" class="form-select">
+                                <option value="">Default</option>
+                                <option value="morning">AM (Morning)</option>
+                                <option value="afternoon">PM (Afternoon)</option>
+                            </select>
+                            <small class="form-help">Assign default session for this section (AM/PM). Leave blank to use schedule/time-based detection.</small>
+                        </div>
+                        <div class="form-group">
+                            <!-- placeholder for alignment -->
+                        </div>
+                    </div>
+
+                    <div class="form-grid schedule-grid">
+                        <div class="form-group">
+                            <label class="form-label">AM Session</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="time" name="am_start_time" id="am_start_time" class="form-input" placeholder="AM Start">
+                                <input type="time" name="am_late_threshold" id="am_late_threshold" class="form-input" placeholder="Late After">
+                                <input type="time" name="am_end_time" id="am_end_time" class="form-input" placeholder="AM End">
+                            </div>
+                            <small class="form-help">AM start / late threshold / end times</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">PM Session</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="time" name="pm_start_time" id="pm_start_time" class="form-input" placeholder="PM Start">
+                                <input type="time" name="pm_late_threshold" id="pm_late_threshold" class="form-input" placeholder="Late After">
+                                <input type="time" name="pm_end_time" id="pm_end_time" class="form-input" placeholder="PM End">
+                            </div>
+                            <small class="form-help">PM start / late threshold / end times</small>
+                        </div>
+                    </div>
                     
                     <div class="form-group" id="statusGroup" style="display: none;">
                         <label for="status" class="form-label">Status</label>
@@ -818,6 +876,13 @@ function openAddModal() {
     document.getElementById('sectionForm').reset();
     document.getElementById('school_year').value = '<?php echo date('Y') . '-' . (date('Y') + 1); ?>';
     document.getElementById('statusGroup').style.display = 'none';
+    try { document.getElementById('session').value = ''; } catch(e) {}
+    try { document.getElementById('am_start_time').value = ''; } catch(e) {}
+    try { document.getElementById('am_late_threshold').value = ''; } catch(e) {}
+    try { document.getElementById('am_end_time').value = ''; } catch(e) {}
+    try { document.getElementById('pm_start_time').value = ''; } catch(e) {}
+    try { document.getElementById('pm_late_threshold').value = ''; } catch(e) {}
+    try { document.getElementById('pm_end_time').value = ''; } catch(e) {}
     
     openModal('sectionModal');
 }
@@ -832,7 +897,16 @@ function editSection(section) {
     document.getElementById('section_name').value = section.section_name;
     document.getElementById('grade_level').value = section.grade_level || '';
     document.getElementById('adviser').value = section.adviser || '';
+    
+    // set session value if present
+    try { document.getElementById('session').value = section.session || ''; } catch(e) {}
     document.getElementById('school_year').value = section.school_year || '';
+    try { document.getElementById('am_start_time').value = section.am_start_time || ''; } catch(e) {}
+    try { document.getElementById('am_late_threshold').value = section.am_late_threshold || ''; } catch(e) {}
+    try { document.getElementById('am_end_time').value = section.am_end_time || ''; } catch(e) {}
+    try { document.getElementById('pm_start_time').value = section.pm_start_time || ''; } catch(e) {}
+    try { document.getElementById('pm_late_threshold').value = section.pm_late_threshold || ''; } catch(e) {}
+    try { document.getElementById('pm_end_time').value = section.pm_end_time || ''; } catch(e) {}
     document.getElementById('status').value = section.status || 'active';
     document.getElementById('statusGroup').style.display = 'block';
     

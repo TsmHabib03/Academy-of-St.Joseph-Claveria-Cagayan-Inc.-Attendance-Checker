@@ -204,7 +204,7 @@ include 'includes/header_modern.php';
             </div>
             <span class="stat-card-label">Total Students</span>
         </div>
-        <div class="stat-card-value"><?php echo number_format($totalStudents); ?></div>
+        <div id="totalStudentsValue" class="stat-card-value"><?php echo number_format($totalStudents); ?></div>
         <div class="stat-card-footer">
             <span><?php echo $activeSections; ?> sections</span>
         </div>
@@ -218,7 +218,7 @@ include 'includes/header_modern.php';
             </div>
             <span class="stat-card-label">Present Today</span>
         </div>
-        <div class="stat-card-value"><?php echo number_format($presentToday); ?></div>
+        <div id="presentTodayValue" class="stat-card-value"><?php echo number_format($presentToday); ?></div>
         <div class="stat-card-footer">
             <span><i class="fas fa-arrow-up"></i> <?php echo $attendanceRate; ?>% rate</span>
         </div>
@@ -232,7 +232,7 @@ include 'includes/header_modern.php';
             </div>
             <span class="stat-card-label">Absent Today</span>
         </div>
-        <div class="stat-card-value"><?php echo number_format($absentToday); ?></div>
+        <div id="absentTodayValue" class="stat-card-value"><?php echo number_format($absentToday); ?></div>
         <div class="stat-card-footer">
             <span><?php echo number_format(100 - $attendanceRate, 1); ?>% of total</span>
         </div>
@@ -246,11 +246,16 @@ include 'includes/header_modern.php';
             </div>
             <span class="stat-card-label">Total Records</span>
         </div>
-        <div class="stat-card-value"><?php echo number_format($totalRecords); ?></div>
+        <div id="totalRecordsValue" class="stat-card-value"><?php echo number_format($totalRecords); ?></div>
         <div class="stat-card-footer">
             <span>All time attendance</span>
         </div>
     </div>
+</div>
+
+<!-- Live Poll Status -->
+<div style="margin-top:8px;">
+    <small id="liveStatsStatus" style="color:var(--gray-600);">Live stats: idle</small>
 </div>
 
 <!-- Dashboard Grid -->
@@ -796,6 +801,53 @@ include 'includes/header_modern.php';
         console.log('Auto-refreshing dashboard...');
         window.location.reload();
     }, 5 * 60 * 1000);
+    
+    // Short-poll live stats update to reflect scans quickly
+    async function pollLiveStats() {
+        try {
+            // Ensure session cookie is sent and provide better diagnostics
+            const res = await fetch('../api/get_dashboard_stats.php', { method: 'POST', credentials: 'same-origin' });
+            if (!res.ok) {
+                console.log('Live stats poll: HTTP error', res.status, res.statusText);
+                const text = await res.text().catch(() => null);
+                if (text) console.log('Live stats poll response body:', text);
+                const statusEl = document.getElementById('liveStatsStatus'); if (statusEl) statusEl.textContent = `Live stats: HTTP ${res.status}`;
+                return;
+            }
+            let j;
+            try {
+                j = await res.json();
+            } catch (err) {
+                const txt = await res.text().catch(() => null);
+                console.log('Live stats poll: invalid JSON response', txt);
+                const statusEl = document.getElementById('liveStatsStatus'); if (statusEl) statusEl.textContent = 'Live stats: invalid JSON';
+                return;
+            }
+            if (!j.success || !j.stats) {
+                console.log('Live stats poll: API returned no stats', j);
+                const statusEl = document.getElementById('liveStatsStatus'); if (statusEl) statusEl.textContent = 'Live stats: no stats';
+                return;
+            }
+            const s = j.stats;
+            // Update DOM values if present
+            if (document.getElementById('totalStudentsValue')) document.getElementById('totalStudentsValue').textContent = Number(s.total_students).toLocaleString();
+            if (document.getElementById('presentTodayValue')) document.getElementById('presentTodayValue').textContent = Number(s.present_today).toLocaleString();
+            if (document.getElementById('absentTodayValue')) document.getElementById('absentTodayValue').textContent = (Number(s.total_students) - Number(s.present_today)).toLocaleString();
+            // Update attendance rate display in Present Today footer
+            const presentFooter = document.querySelector('.stat-card-success .stat-card-footer span');
+            if (presentFooter) presentFooter.textContent = ` ${s.attendance_rate}% rate`;
+            console.log('Live stats poll: updated stats', s);
+            const statusEl = document.getElementById('liveStatsStatus'); if (statusEl) statusEl.textContent = `Live stats: updated ${new Date().toLocaleTimeString()}`;
+        } catch (e) {
+            console.log('Live stats poll failed', e.message || e);
+            const statusEl = document.getElementById('liveStatsStatus'); if (statusEl) statusEl.textContent = 'Live stats: error';
+        }
+    }
+
+    // Start polling every 5 seconds
+    setInterval(pollLiveStats, 5000);
+    // Run once on init
+    pollLiveStats();
     
 })();
 </script>
