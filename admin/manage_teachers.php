@@ -14,24 +14,24 @@ require_once __DIR__ . '/../includes/auth_middleware.php';
 // Require admin role
 requireRole([ROLE_ADMIN]);
 
-$currentAdmin = getCurrentAdmin();
-$pageTitle = isset($_GET['id']) ? 'Edit Teacher' : 'Manage Teachers';
-$pageIcon = 'chalkboard-teacher';
-
-// Add external CSS - Use manual-attendance-modern.css for enhanced design with gradient header
-$additionalCSS = ['../css/manual-attendance-modern.css?v=' . time()];
-
 // Initialize variables
 $message = '';
 $messageType = 'info';
 $editMode = false;
 $editTeacher = null;
 
+// Page metadata
+$currentAdmin = getCurrentAdmin();
+$pageTitle = isset($_GET['id']) ? 'Edit Teacher' : 'Manage Teachers';
+$pageIcon = 'chalkboard-teacher';
+// Add enhanced admin CSS for header design
+$additionalCSS = ['../css/manual-attendance-modern.css?v=' . time()];
+
 // Check if editing
 if (isset($_GET['id'])) {
     $editMode = true;
     $editId = intval($_GET['id']);
-    
+
     try {
         $stmt = $pdo->prepare("SELECT * FROM teachers WHERE id = ?");
         $stmt->execute([$editId]);
@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($action === 'add' || $action === 'edit') {
         // Get form data
+        $employeeNumber = trim($_POST['employee_number'] ?? '');
         $employeeId = trim($_POST['employee_id'] ?? '');
         $firstName = trim($_POST['first_name'] ?? '');
         $middleName = trim($_POST['middle_name'] ?? '');
@@ -63,12 +64,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim($_POST['email'] ?? '');
         $department = trim($_POST['department'] ?? '');
         $position = trim($_POST['position'] ?? '');
+        $shift = trim($_POST['shift'] ?? 'morning');
         
         // Validation
         $errors = [];
         
-        if (empty($employeeId)) {
-            $errors[] = "Employee ID is required.";
+        if (empty($employeeNumber) || !preg_match('/^\d{7}$/', $employeeNumber)) {
+            $errors[] = "Employee Number is required and must be a 7-digit number.";
         }
         
         if (empty($firstName)) {
@@ -91,67 +93,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors[] = "Invalid email address format.";
         }
+
+        // Validate shift
+        $shiftOptions = ['morning', 'afternoon', 'both'];
+        if (!in_array($shift, $shiftOptions, true)) {
+            $errors[] = "Invalid shift selected.";
+        }
         
         if (empty($errors)) {
             try {
                 if ($action === 'add') {
-                    // Check for duplicate employee_id
-                    $checkStmt = $pdo->prepare("SELECT id FROM teachers WHERE employee_id = ?");
-                    $checkStmt->execute([$employeeId]);
-                    if ($checkStmt->fetch()) {
-                        $message = "A teacher with this Employee ID already exists.";
+                    // Ensure employee_number is present and unique (7 digits)
+                    if (!preg_match('/^\d{7}$/', $employeeNumber)) {
+                        $message = "Employee Number must be a 7-digit number.";
                         $messageType = "error";
                     } else {
-                        // Generate QR code
-                        $qrCodePath = generateQRCode($employeeId, 'teacher');
-                        
-                        // Insert new teacher
-                        $stmt = $pdo->prepare("
-                            INSERT INTO teachers 
-                            (employee_id, first_name, middle_name, last_name, sex, mobile_number, email, department, position, qr_code, created_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                        ");
-                        $stmt->execute([
-                            $employeeId, $firstName, $middleName, $lastName,
-                            $sex, $mobileNumber, $email, $department, $position, $qrCodePath
-                        ]);
-                        
-                        logAdminActivity('ADD_TEACHER', "Added teacher: {$firstName} {$lastName} (ID: {$employeeId})");
-                        
-                        $message = "Teacher added successfully!";
-                        $messageType = "success";
-                        
-                        // Clear form
-                        $_POST = [];
+                        $checkStmt = $pdo->prepare("SELECT id FROM teachers WHERE employee_number = ?");
+                        $checkStmt->execute([$employeeNumber]);
+                        if ($checkStmt->fetch()) {
+                            $message = "A teacher with this Employee Number already exists.";
+                            $messageType = "error";
+                        } else {
+                            // Generate QR code using Employee Number
+                            $qrData = 'TEACHER:' . $employeeNumber;
+                            $qrCodePath = generateQRCode($qrData, 'teacher');
+
+                            
+                                // Insert new teacher (employee_id will be generated automatically)
+                                $stmt = $pdo->prepare("
+                                    INSERT INTO teachers 
+                                    (employee_number, first_name, middle_name, last_name, sex, mobile_number, email, department, position, `shift`, qr_code, created_at)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                                ");
+                                $stmt->execute([
+                                    $employeeNumber, $firstName, $middleName, $lastName,
+                                    $sex, $mobileNumber, $email, $department, $position, $shift, $qrCodePath
+                                ]);
+
+                                // Generate a simple employee_id using the new row id
+                                $newTeacherId = $pdo->lastInsertId();
+                                if ($newTeacherId) {
+                                    $generatedEmpId = 'EMP-' . str_pad($newTeacherId, 6, '0', STR_PAD_LEFT);
+                                    $upd = $pdo->prepare("UPDATE teachers SET employee_id = ? WHERE id = ?");
+                                    $upd->execute([$generatedEmpId, $newTeacherId]);
+                                }
+
+                            logAdminActivity('ADD_TEACHER', "Added teacher: {$firstName} {$lastName} (Num: {$employeeNumber})");
+
+                            $message = "Teacher added successfully!";
+                            $messageType = "success";
+
+                            // Clear form
+                            $_POST = [];
+                        }
                     }
                 } else {
                     // Update existing teacher
                     $teacherId = intval($_POST['teacher_id']);
                     
-                    // Check for duplicate employee_id (excluding current teacher)
-                    $checkStmt = $pdo->prepare("SELECT id FROM teachers WHERE employee_id = ? AND id != ?");
-                    $checkStmt->execute([$employeeId, $teacherId]);
+                    // Check for duplicate employee_number (excluding current teacher)
+                    $checkStmt = $pdo->prepare("SELECT id FROM teachers WHERE employee_number = ? AND id != ?");
+                    $checkStmt->execute([$employeeNumber, $teacherId]);
                     if ($checkStmt->fetch()) {
-                        $message = "Another teacher with this Employee ID already exists.";
+                        $message = "Another teacher with this Employee Number already exists.";
                         $messageType = "error";
                     } else {
-                        $stmt = $pdo->prepare("
-                            UPDATE teachers 
-                            SET employee_id = ?, first_name = ?, middle_name = ?, last_name = ?,
-                                sex = ?, mobile_number = ?, email = ?, department = ?, position = ?,
-                                updated_at = NOW()
-                            WHERE id = ?
-                        ");
-                        $stmt->execute([
-                            $employeeId, $firstName, $middleName, $lastName,
-                            $sex, $mobileNumber, $email, $department, $position, $teacherId
-                        ]);
                         
-                        logAdminActivity('EDIT_TEACHER', "Updated teacher: {$firstName} {$lastName} (ID: {$employeeId})");
-                        
+                            $stmt = $pdo->prepare("
+                                UPDATE teachers 
+                                SET employee_number = ?, first_name = ?, middle_name = ?, last_name = ?,
+                                    sex = ?, mobile_number = ?, email = ?, department = ?, position = ?, `shift` = ?,
+                                    updated_at = NOW()
+                                WHERE id = ?
+                            ");
+                            $stmt->execute([
+                                $employeeNumber, $firstName, $middleName, $lastName,
+                                $sex, $mobileNumber, $email, $department, $position, $shift, $teacherId
+                            ]);
+
+                        logAdminActivity('EDIT_TEACHER', "Updated teacher: {$firstName} {$lastName} (Num: {$employeeNumber})");
+
                         $message = "Teacher updated successfully!";
                         $messageType = "success";
-                        
+
                         // Refresh teacher data
                         $stmt = $pdo->prepare("SELECT * FROM teachers WHERE id = ?");
                         $stmt->execute([$teacherId]);
@@ -172,22 +196,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         try {
             // Get teacher info for logging
-            $stmt = $pdo->prepare("SELECT employee_id, first_name, last_name FROM teachers WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT employee_number, employee_id, first_name, last_name FROM teachers WHERE id = ?");
             $stmt->execute([$teacherId]);
             $teacher = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($teacher) {
-                // Delete attendance records first
-                $stmtAtt = $pdo->prepare("DELETE FROM teacher_attendance WHERE employee_id = ?");
-                $stmtAtt->execute([$teacher['employee_id']]);
+                // Prepare id display and delete attendance records matching either employee_id or employee_number
+                $empNum = $teacher['employee_number'] ?? null;
+                    $stmtAtt = $pdo->prepare("DELETE FROM teacher_attendance WHERE employee_id = ? OR employee_number = ?");
+                    $stmtAtt->execute([$teacher['employee_id'] ?? null, $empNum]);
                 $deletedAttendance = $stmtAtt->rowCount();
-                
+
                 // Delete teacher
                 $stmt = $pdo->prepare("DELETE FROM teachers WHERE id = ?");
                 $stmt->execute([$teacherId]);
-                
+
+                $idDisplay = $empNum ?? ($teacher['employee_id'] ?? 'N/A');
                 logAdminActivity('DELETE_TEACHER', 
-                    "Deleted teacher: {$teacher['first_name']} {$teacher['last_name']} (ID: {$teacher['employee_id']}). " .
+                    "Deleted teacher: {$teacher['first_name']} {$teacher['last_name']} (ID: {$idDisplay}). " .
                     "Also deleted {$deletedAttendance} attendance records.");
                 
                 $message = "Teacher deleted successfully.";
@@ -204,19 +230,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $teacherId = intval($_POST['teacher_id']);
         
         try {
-            $stmt = $pdo->prepare("SELECT employee_id FROM teachers WHERE id = ?");
-            $stmt->execute([$teacherId]);
-            $teacher = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($teacher) {
-                $qrCodePath = generateQRCode($teacher['employee_id'], 'teacher');
-                
-                $updateStmt = $pdo->prepare("UPDATE teachers SET qr_code = ? WHERE id = ?");
-                $updateStmt->execute([$qrCodePath, $teacherId]);
-                
-                $message = "QR code regenerated successfully!";
-                $messageType = "success";
-            }
+                    // Only select columns that exist to avoid SQL errors if employee_id was removed
+                    $stmt = $pdo->prepare("SELECT employee_number, id FROM teachers WHERE id = ?");
+                    $stmt->execute([$teacherId]);
+                    $teacher = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($teacher) {
+                        $empNum = $teacher['employee_number'] ?? null;
+                        // Use employee_number when available, otherwise fall back to a safe ID-based identifier
+                        $identifierValue = $empNum ?: ('ID' . ($teacher['id'] ?? $teacherId));
+                        $qrData = 'TEACHER:' . $identifierValue;
+                        $qrCodePath = generateQRCode($qrData, 'teacher');
+
+                        if ($qrCodePath === false) {
+                            $message = "Failed to generate QR code. Check server permissions or network connectivity.";
+                            $messageType = "error";
+                        } else {
+                            $updateStmt = $pdo->prepare("UPDATE teachers SET qr_code = ? WHERE id = ?");
+                            $updateStmt->execute([$qrCodePath, $teacherId]);
+
+                            $message = "QR code regenerated successfully!";
+                            $messageType = "success";
+                        }
+                    }
         } catch (Exception $e) {
             $message = "Error regenerating QR code.";
             $messageType = "error";
@@ -226,12 +262,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Fetch all teachers for listing
 try {
-    $stmt = $pdo->query("
-        SELECT t.*, 
-               (SELECT MAX(date) FROM teacher_attendance WHERE employee_id = t.employee_id) as last_attendance
-        FROM teachers t
-        ORDER BY t.last_name, t.first_name
-    ");
+    // Determine schema and which identifier exists in teacher_attendance
+    $schema = $pdo->query('SELECT DATABASE()')->fetchColumn();
+    $colStmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = 'teacher_attendance' AND COLUMN_NAME = :col");
+    $colStmt->execute([':schema' => $schema, ':col' => 'employee_number']);
+    $hasEmpNum = $colStmt->fetchColumn() > 0;
+    $colStmt->execute([':schema' => $schema, ':col' => 'employee_id']);
+    $hasEmpId = $colStmt->fetchColumn() > 0;
+
+    if ($hasEmpNum) {
+        $sub = "(SELECT MAX(date) FROM teacher_attendance WHERE employee_number = t.employee_number) as last_attendance";
+    } elseif ($hasEmpId) {
+        $sub = "(SELECT MAX(date) FROM teacher_attendance WHERE employee_id = t.employee_id) as last_attendance";
+    } else {
+        $sub = "NULL as last_attendance";
+    }
+
+    $sql = "SELECT t.*, {$sub} FROM teachers t ORDER BY t.last_name, t.first_name";
+    $stmt = $pdo->query($sql);
     $teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $teachers = [];
@@ -240,6 +288,8 @@ try {
 
 // Fetch departments for dropdown
 $departments = ['Science', 'Mathematics', 'English', 'Filipino', 'Social Studies', 'TLE', 'MAPEH', 'Values Education', 'Administration', 'Other'];
+// Shift options for teacher scheduling
+$shiftOptions = ['morning', 'afternoon', 'both'];
 
 include 'includes/header_modern.php';
 ?>
@@ -334,11 +384,13 @@ include 'includes/header_modern.php';
             
             <div class="form-grid two-col">
                 <div class="form-group">
-                    <label for="employee_id">Employee ID <span class="required">*</span></label>
-                    <input type="text" id="employee_id" name="employee_id" class="form-input"
-                           value="<?php echo htmlspecialchars($editTeacher['employee_id'] ?? $_POST['employee_id'] ?? ''); ?>"
-                           placeholder="e.g., EMP-2026-001" required>
+                    <label for="employee_number">Employee Number <span class="required">*</span></label>
+                    <input type="text" id="employee_number" name="employee_number" class="form-input"
+                           value="<?php echo htmlspecialchars($editTeacher['employee_number'] ?? $_POST['employee_number'] ?? ''); ?>"
+                           placeholder="7-digit number e.g., 4354188" required pattern="\d{7}">
                 </div>
+
+                
                 
                 <div class="form-group">
                     <label for="first_name">First Name <span class="required">*</span></label>
@@ -396,6 +448,14 @@ include 'includes/header_modern.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
+                    <div class="form-group">
+                        <label for="shift">Shift</label>
+                        <select id="shift" name="shift" class="form-select">
+                            <?php foreach ($shiftOptions as $opt): ?>
+                                <option value="<?php echo $opt; ?>" <?php echo ((($editTeacher['shift'] ?? $_POST['shift'] ?? 'morning') === $opt) ? 'selected' : ''); ?>><?php echo ucfirst($opt); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 
                 <div class="form-group">
                     <label for="position">Position</label>
@@ -436,11 +496,12 @@ include 'includes/header_modern.php';
             <table class="data-table" id="teachersTable">
                 <thead>
                     <tr>
-                        <th>Employee ID</th>
+                        <th>Employee Number</th>
                         <th>Name</th>
                         <th>Sex</th>
                         <th>Department</th>
                         <th>Position</th>
+                        <th>Shift</th>
                         <th>Mobile</th>
                         <th>Last Attendance</th>
                         <th>Actions</th>
@@ -448,13 +509,59 @@ include 'includes/header_modern.php';
                 </thead>
                 <tbody>
                     <?php if (empty($teachers)): ?>
+                        <?php
+                        // Admin diagnostic when no teachers are returned
+                        $diag = [];
+                        try {
+                            $cntStmt = $pdo->query("SELECT COUNT(*) FROM teachers");
+                            $diag['teachers_count'] = (int) $cntStmt->fetchColumn();
+                        } catch (Exception $e) {
+                            $diag['teachers_count'] = 'ERROR: ' . $e->getMessage();
+                        }
+
+                        try {
+                            $schema = $pdo->query('SELECT DATABASE()')->fetchColumn();
+                            $c = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table AND COLUMN_NAME = :col");
+                            $c->execute([':schema' => $schema, ':table' => 'teachers', ':col' => 'employee_number']);
+                            $diag['teachers_has_employee_number'] = $c->fetchColumn() > 0 ? 'yes' : 'no';
+                            $c->execute([':schema' => $schema, ':table' => 'teachers', ':col' => 'employee_id']);
+                            $diag['teachers_has_employee_id'] = $c->fetchColumn() > 0 ? 'yes' : 'no';
+                            $c->execute([':schema' => $schema, ':table' => 'teacher_attendance', ':col' => 'employee_number']);
+                            $diag['attendance_has_employee_number'] = $c->fetchColumn() > 0 ? 'yes' : 'no';
+                            $c->execute([':schema' => $schema, ':table' => 'teacher_attendance', ':col' => 'employee_id']);
+                            $diag['attendance_has_employee_id'] = $c->fetchColumn() > 0 ? 'yes' : 'no';
+                        } catch (Exception $e) {
+                            $diag['schema_check_error'] = $e->getMessage();
+                        }
+                        ?>
                         <tr>
-                            <td colspan="8" class="text-center">No teachers found. Click "Add Teacher" to get started.</td>
+                            <td colspan="9" class="text-center">
+                                <div style="padding:12px;">
+                                    <strong>No teachers found.</strong>
+                                    <div style="margin-top:8px;font-size:0.95rem;color:#444;">
+                                        <div>Teachers table count: <?php echo htmlspecialchars((string)$diag['teachers_count']); ?></div>
+                                        <div>teachers.employee_number: <?php echo htmlspecialchars($diag['teachers_has_employee_number'] ?? 'unknown'); ?></div>
+                                        <div>teachers.employee_id: <?php echo htmlspecialchars($diag['teachers_has_employee_id'] ?? 'unknown'); ?></div>
+                                        <div>teacher_attendance.employee_number: <?php echo htmlspecialchars($diag['attendance_has_employee_number'] ?? 'unknown'); ?></div>
+                                        <div>teacher_attendance.employee_id: <?php echo htmlspecialchars($diag['attendance_has_employee_id'] ?? 'unknown'); ?></div>
+                                    </div>
+                                    <div style="margin-top:8px;color:#666;font-size:0.9rem;">If this looks wrong, check your database and run the migration in <code>database/add_teacher_employee_number_migration.php</code> or restore a backup.</div>
+                                </div>
+                            </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($teachers as $teacher): ?>
+                            <?php
+                                $rowDisplayId = $teacher['employee_number'] ?? ($teacher['employee_id'] ?? 'N/A');
+                                $fullName = $teacher['first_name'];
+                                if (!empty($teacher['middle_name'])) {
+                                    $fullName .= ' ' . substr($teacher['middle_name'], 0, 1) . '.';
+                                }
+                                $fullName .= ' ' . $teacher['last_name'];
+                            ?>
                             <tr>
-                                <td><strong><?php echo htmlspecialchars($teacher['employee_id']); ?></strong></td>
+                                <td><strong><?php echo htmlspecialchars($teacher['employee_number'] ?? 'N/A'); ?></strong></td>
+                                
                                 <td>
                                     <?php 
                                     $fullName = $teacher['first_name'];
@@ -468,6 +575,7 @@ include 'includes/header_modern.php';
                                 <td><?php echo $teacher['sex']; ?></td>
                                 <td><?php echo htmlspecialchars($teacher['department'] ?? 'N/A'); ?></td>
                                 <td><?php echo htmlspecialchars($teacher['position'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars(ucfirst($teacher['shift'] ?? 'N/A')); ?></td>
                                 <td><?php echo htmlspecialchars($teacher['mobile_number'] ?? 'N/A'); ?></td>
                                 <td>
                                     <?php if ($teacher['last_attendance']): ?>
@@ -481,9 +589,9 @@ include 'includes/header_modern.php';
                                        class="btn btn-sm btn-primary" title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <button type="button" class="btn btn-sm btn-info" 
-                                            onclick="showQRCode('<?php echo $teacher['employee_id']; ?>', '<?php echo addslashes($fullName); ?>', '<?php echo $teacher['qr_code']; ?>')"
-                                            title="View QR Code">
+                                            <button type="button" class="btn btn-sm btn-info" 
+                                                onclick='showQRCode(<?php echo json_encode($rowDisplayId); ?>, <?php echo json_encode($fullName); ?>, <?php echo json_encode($teacher['qr_code'] ?? ''); ?>)'
+                                                title="View QR Code">
                                         <i class="fas fa-qrcode"></i>
                                     </button>
                                     <form method="POST" style="display:inline;" 
@@ -506,7 +614,18 @@ include 'includes/header_modern.php';
     <?php endif; ?>
 
     <!-- QR Code Display -->
-    <?php if ($editMode && $editTeacher && $editTeacher['qr_code']): ?>
+    <?php if ($editMode && $editTeacher && !empty($editTeacher['qr_code'])): ?>
+    <?php
+        // Safe display values to avoid undefined index warnings
+        $qrPathRel = '../' . ($editTeacher['qr_code'] ?? '');
+        $displayId = 'N/A';
+        if (isset($editTeacher['employee_number']) && $editTeacher['employee_number'] !== '') {
+            $displayId = $editTeacher['employee_number'];
+        } elseif (isset($editTeacher['employee_id']) && $editTeacher['employee_id'] !== '') {
+            $displayId = $editTeacher['employee_id'];
+        }
+        $fullName = trim((string)($editTeacher['first_name'] ?? '') . ' ' . (string)($editTeacher['last_name'] ?? ''));
+    ?>
     <div class="form-card">
         <div class="form-card-header">
             <h2 class="form-card-title">
@@ -515,21 +634,21 @@ include 'includes/header_modern.php';
             </h2>
         </div>
         <div class="form-card-body" style="text-align: center;">
-            <img src="../<?php echo htmlspecialchars($editTeacher['qr_code']); ?>" 
-                 alt="QR Code for <?php echo htmlspecialchars($editTeacher['employee_id']); ?>"
+            <img src="<?php echo htmlspecialchars($qrPathRel); ?>" 
+                 alt="QR Code for <?php echo htmlspecialchars($displayId); ?>"
                  class="qr-code-image">
             <p class="qr-code-label">
-                <strong><?php echo htmlspecialchars($editTeacher['first_name'] . ' ' . $editTeacher['last_name']); ?></strong><br>
-                <?php echo htmlspecialchars($editTeacher['employee_id']); ?>
+                <strong><?php echo htmlspecialchars($fullName); ?></strong><br>
+                <?php echo htmlspecialchars($displayId); ?>
             </p>
             <div class="qr-actions">
-                <a href="../<?php echo htmlspecialchars($editTeacher['qr_code']); ?>" 
-                   download="QR_<?php echo $editTeacher['employee_id']; ?>.png" class="btn btn-primary">
+                <a href="<?php echo htmlspecialchars($qrPathRel); ?>" 
+                   download="<?php echo 'QR_' . htmlspecialchars($displayId); ?>.png" class="btn btn-primary">
                     <i class="fas fa-download"></i> Download QR Code
                 </a>
                 <form method="POST" style="display:inline;">
                     <input type="hidden" name="action" value="regenerate_qr">
-                    <input type="hidden" name="teacher_id" value="<?php echo $editTeacher['id']; ?>">
+                    <input type="hidden" name="teacher_id" value="<?php echo htmlspecialchars($editTeacher['id'] ?? ''); ?>">
                     <button type="submit" class="btn btn-secondary">
                         <i class="fas fa-sync"></i> Regenerate QR
                     </button>
@@ -1031,7 +1150,7 @@ include 'includes/header_modern.php';
 <script>
 function showAddForm() {
     document.getElementById('teacherForm').style.display = 'block';
-    document.getElementById('employee_id').focus();
+    document.getElementById('employee_number').focus();
 }
 
 function hideAddForm() {

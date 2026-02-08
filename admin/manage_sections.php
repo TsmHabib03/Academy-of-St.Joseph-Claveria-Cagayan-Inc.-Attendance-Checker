@@ -19,6 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
     header('Content-Type: application/json');
     
     try {
+        // Detect whether the `sections` table has a `shift` column (safe runtime check)
+        $currentDb = $pdo->query("SELECT DATABASE()")->fetchColumn();
+        $hasShiftColumn = false;
+        if ($currentDb) {
+            $colStmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'sections' AND COLUMN_NAME = 'shift'");
+            $colStmt->execute([$currentDb]);
+            $hasShiftColumn = (int)$colStmt->fetchColumn() > 0;
+        }
+
         $action = $_POST['action'] ?? '';
         
         if ($action === 'add') {
@@ -39,8 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                 throw new Exception('Section already exists');
             }
             
-            $stmt = $pdo->prepare("INSERT INTO sections (section_name, grade_level, adviser, school_year) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$section_name, $grade_level, $adviser, $school_year]);
+            $shift = trim($_POST['shift'] ?? '');
+            if ($hasShiftColumn) {
+                $stmt = $pdo->prepare("INSERT INTO sections (section_name, grade_level, adviser, school_year, shift) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $shift]);
+            } else {
+                $stmt = $pdo->prepare("INSERT INTO sections (section_name, grade_level, adviser, school_year) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$section_name, $grade_level, $adviser, $school_year]);
+            }
             
             logAdminActivity('ADD_SECTION', "Added section: $section_name");
             
@@ -53,8 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $grade_level = trim($_POST['grade_level'] ?? '');
             $adviser = trim($_POST['adviser'] ?? '');
             $school_year = trim($_POST['school_year'] ?? '');
-            $status = $_POST['status'] ?? 'active';
-            $is_active = ($status === 'active') ? 1 : 0;
+            // Keep existing is_active value; status is no longer editable from this form
+            // We will not modify `is_active` here to avoid accidental deactivation.
             
             if (empty($section_name)) {
                 throw new Exception('Section name is required');
@@ -70,10 +85,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             }
             
             $pdo->beginTransaction();
-            
-            // Update section
-            $stmt = $pdo->prepare("UPDATE sections SET section_name = ?, grade_level = ?, adviser = ?, school_year = ?, is_active = ? WHERE id = ?");
-            $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $is_active, $id]);
+
+            // Update section (do not change is_active here)
+            $shift = trim($_POST['shift'] ?? '');
+            if ($hasShiftColumn) {
+                $stmt = $pdo->prepare("UPDATE sections SET section_name = ?, grade_level = ?, adviser = ?, school_year = ?, shift = ? WHERE id = ?");
+                $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $shift, $id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE sections SET section_name = ?, grade_level = ?, adviser = ?, school_year = ? WHERE id = ?");
+                $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $id]);
+            }
             
             // Update students' section field if section name changed
             if ($old_section['section_name'] !== $section_name) {
@@ -138,6 +159,47 @@ try {
               ORDER BY s.section_name";
     $stmt = $pdo->query($query);
     $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Runtime: determine if `sections.shift` column exists to enable shift UI
+    $currentDb = $pdo->query("SELECT DATABASE()")->fetchColumn();
+    $hasShiftColumn = false;
+    if ($currentDb) {
+        $colStmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'sections' AND COLUMN_NAME = 'shift'");
+        $colStmt->execute([$currentDb]);
+        $hasShiftColumn = (int)$colStmt->fetchColumn() > 0;
+    }
+
+    // Fetch registered teachers for adviser dropdown (non-fatal)
+    $teachers = [];
+    try {
+        $sql = "SELECT id, COALESCE(employee_number, employee_id) as emp_uid, CONCAT(first_name, ' ', last_name) as fullname FROM teachers ORDER BY last_name, first_name";
+        $tstmt = $pdo->query($sql);
+        if ($tstmt !== false) {
+            $teachers = $tstmt->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            error_log("manage_sections: teachers query returned false");
+            $teachers = [];
+        }
+    } catch (Exception $e) {
+        error_log("manage_sections: fetch teachers error: " . $e->getMessage());
+        // Try a simpler fallback select in case CONCAT or COALESCE caused issues
+        try {
+            $fsql = "SELECT id, employee_number as emp_uid, first_name, last_name FROM teachers ORDER BY last_name, first_name";
+            $ft = $pdo->query($fsql);
+            if ($ft !== false) {
+                $raw = $ft->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($raw as $r) {
+                    $teachers[] = [
+                        'id' => $r['id'],
+                        'emp_uid' => $r['employee_number'] ?? $r['emp_uid'] ?? '',
+                        'fullname' => trim(($r['first_name'] ?? '') . ' ' . ($r['last_name'] ?? ''))
+                    ];
+                }
+            }
+        } catch (Exception $e2) {
+            error_log("manage_sections: fallback fetch teachers error: " . $e2->getMessage());
+            $teachers = [];
+        }
+    }
     
     // Ensure all sections have required keys to prevent undefined array key warnings
     foreach ($sections as &$section) {
@@ -146,12 +208,15 @@ try {
         $section['adviser'] = $section['adviser'] ?? '';
         $section['school_year'] = $section['school_year'] ?? '';
         $section['grade_level'] = $section['grade_level'] ?? '';
+        $section['shift'] = $section['shift'] ?? '';
     }
     unset($section); // Break reference
 } catch (Exception $e) {
     $sections = [];
     $message = 'Error loading sections: ' . $e->getMessage();
     $messageType = 'error';
+    $teachers = [];
+    $hasShiftColumn = false;
 }
 
 include 'includes/header_modern.php';
@@ -437,6 +502,12 @@ include 'includes/header_modern.php';
                                 </th>
                                 <th>
                                     <div class="th-content">
+                                        <i class="fas fa-clock th-icon"></i>
+                                        <span>Shift</span>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
                                         <i class="fas fa-chalkboard-teacher th-icon"></i>
                                         <span>Adviser</span>
                                     </div>
@@ -496,6 +567,13 @@ include 'includes/header_modern.php';
                                                 ?>
                                             </span>
                                         </span>
+                                    <?php else: ?>
+                                        <span class="text-muted-custom">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($section['shift'])): ?>
+                                        <span class="shift-badge shift-<?php echo strtolower($section['shift']); ?>"><?php echo htmlspecialchars(ucfirst($section['shift'])); ?></span>
                                     <?php else: ?>
                                         <span class="text-muted-custom">-</span>
                                     <?php endif; ?>
@@ -589,7 +667,7 @@ include 'includes/header_modern.php';
                     </div>
                     <div>
                         <h3 class="modal-title" id="modalTitle">Add New Section</h3>
-                        <p class="modal-subtitle">Fill in the section details below</p>
+                        <p class="modal-subtitle">Fill in the section details below the shift (AM/PM)</p>
                     </div>
                 </div>
                 <button class="modal-close modal-close-enhanced" data-action="close-modal" data-modal="sectionModal">
@@ -652,22 +730,33 @@ include 'includes/header_modern.php';
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="adviser" class="form-label">Section Adviser</label>
-                            <input 
-                                type="text" 
-                                name="adviser" 
-                                id="adviser" 
-                                class="form-input" 
-                                placeholder="Teacher's name">
+                            <select name="adviser" id="adviser" class="form-select">
+                                <option value="">-- Select Adviser --</option>
+                                <?php foreach ($teachers as $t): 
+                                    $display = $t['fullname'];
+                                    if (!empty($t['emp_uid'])) { $display .= ' (' . $t['emp_uid'] . ')'; }
+                                ?>
+                                    <option value="<?php echo htmlspecialchars($t['fullname']); ?>"><?php echo htmlspecialchars($display); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php if (empty($teachers)): ?>
+                                <div class="form-help" style="margin-top: .5rem;">
+                                    No registered teachers found. <a href="manage_teachers.php">Add teachers</a> to assign as advisers.
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="form-group">
+                            <label for="shift" class="form-label">Shift</label>
+                            <select name="shift" id="shift" class="form-select">
+                                <option value="">Auto (time-based)</option>
+                                <option value="AM">AM</option>
+                                <option value="PM">PM</option>
+                            </select>
+                            <small class="form-help">Fill in the section details below the shift (AM/PM).</small>
                         </div>
                     </div>
                     
-                    <div class="form-group" id="statusGroup" style="display: none;">
-                        <label for="status" class="form-label">Status</label>
-                        <select name="status" id="status" class="form-select">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
+                    <!-- Status is managed separately; removed from this form -->
                     
                     <div class="modal-actions">
                         <button type="button" class="btn btn-secondary" data-action="close-modal" data-modal="sectionModal">
@@ -817,7 +906,12 @@ function openAddModal() {
     document.getElementById('formAction').value = 'add';
     document.getElementById('sectionForm').reset();
     document.getElementById('school_year').value = '<?php echo date('Y') . '-' . (date('Y') + 1); ?>';
-    document.getElementById('statusGroup').style.display = 'none';
+    // Status is not editable here
+    // Reset adviser and shift selects if present
+    const adviserSelect = document.getElementById('adviser');
+    if (adviserSelect) adviserSelect.value = '';
+    const shiftSelect = document.getElementById('shift');
+    if (shiftSelect) shiftSelect.value = '';
     
     openModal('sectionModal');
 }
@@ -831,10 +925,23 @@ function editSection(section) {
     document.getElementById('sectionId').value = section.id;
     document.getElementById('section_name').value = section.section_name;
     document.getElementById('grade_level').value = section.grade_level || '';
-    document.getElementById('adviser').value = section.adviser || '';
+    if (document.getElementById('adviser')) {
+        const adviserEl = document.getElementById('adviser');
+        let set = false;
+        if (section.adviser) {
+            for (let i = 0; i < adviserEl.options.length; i++) {
+                if (adviserEl.options[i].value === section.adviser) { adviserEl.selectedIndex = i; set = true; break; }
+            }
+            if (!set) {
+                for (let i = 0; i < adviserEl.options.length; i++) {
+                    if (adviserEl.options[i].text && adviserEl.options[i].text.indexOf(section.adviser) !== -1) { adviserEl.selectedIndex = i; set = true; break; }
+                }
+            }
+        }
+        if (!set) adviserEl.value = '';
+    }
     document.getElementById('school_year').value = section.school_year || '';
-    document.getElementById('status').value = section.status || 'active';
-    document.getElementById('statusGroup').style.display = 'block';
+    if (document.getElementById('shift')) document.getElementById('shift').value = section.shift || '';
     
     SectionManager.currentSection = section;
     openModal('sectionModal');

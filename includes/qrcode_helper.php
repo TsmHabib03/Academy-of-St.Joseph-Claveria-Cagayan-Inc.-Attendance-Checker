@@ -280,7 +280,7 @@ function generateQRCode($identifier, $type = 'student') {
         }
         
         // Generate filename based on type
-        // For teachers, we use employee_id in filename since we might not have DB ID yet
+        // For teachers, prefer using employee_number in filenames when available; fallback to identifier provided
         $prefix = ($type === 'teacher') ? 'teacher_' : 'student_';
         
         // Sanitize identifier for filename

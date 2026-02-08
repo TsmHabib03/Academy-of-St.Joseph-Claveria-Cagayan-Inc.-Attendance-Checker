@@ -37,6 +37,11 @@ function getDashboardData($pdo) {
         $stmt->execute();
         $todayStats = $stmt->fetch(PDO::FETCH_ASSOC);
         $data['presentToday'] = (int)$todayStats['present'];
+
+        // Teachers present today (count distinct teacher identifiers)
+        $stmt = $pdo->prepare("SELECT COUNT(DISTINCT COALESCE(employee_number, employee_id)) as present_teachers FROM teacher_attendance WHERE date = CURDATE() AND (morning_time_in IS NOT NULL OR afternoon_time_in IS NOT NULL OR time_in IS NOT NULL)");
+        $stmt->execute();
+        $data['presentTeachers'] = (int)$stmt->fetchColumn();
         
         // Absent students today
         $data['absentToday'] = $data['totalStudents'] - $data['presentToday'];
@@ -165,6 +170,7 @@ $dashboardData = getDashboardData($pdo);
 // Extract for easy access
 $totalStudents = $dashboardData['totalStudents'];
 $presentToday = $dashboardData['presentToday'];
+$presentTeachers = $dashboardData['presentTeachers'] ?? 0;
 $absentToday = $dashboardData['absentToday'];
 $attendanceRate = $dashboardData['attendanceRate'];
 $totalRecords = $dashboardData['totalRecords'];
@@ -178,6 +184,14 @@ include 'includes/header_modern.php';
 <!-- ASJ Modern Dashboard Theme -->
 <link rel="stylesheet" href="../css/asj-dashboard-modern.css">
 
+<style>
+    /* Teacher stat icon matches ASJ green theme */
+    .stat-card-icon.teacher {
+        background: var(--asj-green-50);
+        color: var(--asj-green-600);
+    }
+</style>
+
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
@@ -187,6 +201,11 @@ include 'includes/header_modern.php';
         <div class="spinner"></div>
         <p>Loading Dashboard...</p>
     </div>
+</div>
+
+<!-- Live Poll Status -->
+<div style="margin-top:8px;">
+    <small id="liveStatsStatus" style="color:var(--gray-600);">Live stats: idle</small>
 </div>
 
 <!-- Dashboard Data (JSON) -->
@@ -204,7 +223,7 @@ include 'includes/header_modern.php';
             </div>
             <span class="stat-card-label">Total Students</span>
         </div>
-        <div class="stat-card-value"><?php echo number_format($totalStudents); ?></div>
+        <div id="totalStudentsValue" class="stat-card-value"><?php echo number_format($totalStudents); ?></div>
         <div class="stat-card-footer">
             <span><?php echo $activeSections; ?> sections</span>
         </div>
@@ -218,21 +237,35 @@ include 'includes/header_modern.php';
             </div>
             <span class="stat-card-label">Present Today</span>
         </div>
-        <div class="stat-card-value"><?php echo number_format($presentToday); ?></div>
+        <div id="presentTodayValue" class="stat-card-value"><?php echo number_format($presentToday); ?></div>
         <div class="stat-card-footer">
-            <span><i class="fas fa-arrow-up"></i> <?php echo $attendanceRate; ?>% rate</span>
+            <span><?php echo $attendanceRate; ?>% rate</span>
         </div>
     </div>
 
     <!-- Absent Today -->
+    <!-- Teachers Present Today -->
+    <div class="stat-card stat-card-secondary">
+        <div class="stat-card-header">
+            <div class="stat-card-icon teacher">
+                <i class="fas fa-chalkboard-teacher"></i>
+            </div>
+            <span class="stat-card-label">Teachers Present</span>
+        </div>
+        <div id="presentTeachersValue" class="stat-card-value"><?php echo number_format($presentTeachers); ?></div>
+        <div class="stat-card-footer">
+            <span><?php echo number_format($presentTeachers); ?> today</span>
+        </div>
+    </div>
+
     <div class="stat-card stat-card-error">
         <div class="stat-card-header">
             <div class="stat-card-icon">
-                <i class="fas fa-user-xmark"></i>
+                <i class="fas fa-user-times" style="color: var(--red-600);"></i>
             </div>
             <span class="stat-card-label">Absent Today</span>
         </div>
-        <div class="stat-card-value"><?php echo number_format($absentToday); ?></div>
+        <div id="absentTodayValue" class="stat-card-value"><?php echo number_format($absentToday); ?></div>
         <div class="stat-card-footer">
             <span><?php echo number_format(100 - $attendanceRate, 1); ?>% of total</span>
         </div>
@@ -246,7 +279,7 @@ include 'includes/header_modern.php';
             </div>
             <span class="stat-card-label">Total Records</span>
         </div>
-        <div class="stat-card-value"><?php echo number_format($totalRecords); ?></div>
+        <div id="totalRecordsValue" class="stat-card-value"><?php echo number_format($totalRecords); ?></div>
         <div class="stat-card-footer">
             <span>All time attendance</span>
         </div>
@@ -295,8 +328,7 @@ include 'includes/header_modern.php';
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div style="padding: var(--space-8); text-align: center; color: var(--gray-500);">
-                        <i class="fas fa-inbox" style="font-size: var(--text-4xl); margin-bottom: var(--space-4);"></i>
-                        <p>No attendance records yet today</p>
+                        <p style="font-size: var(--text-lg); margin:0 0 var(--space-4);">No attendance records yet today</p>
                     </div>
                 <?php endif; ?>
             </div>
@@ -796,6 +828,52 @@ include 'includes/header_modern.php';
         console.log('Auto-refreshing dashboard...');
         window.location.reload();
     }, 5 * 60 * 1000);
+    
+    // Short-poll live stats update to reflect scans quickly
+    async function pollLiveStats() {
+        const statusEl = document.getElementById('liveStatsStatus');
+        try {
+            if (statusEl) statusEl.textContent = 'Live stats: fetching...';
+            const res = await fetch('../api/get_dashboard_stats.php', { method: 'POST', credentials: 'same-origin' });
+            if (!res.ok) {
+                const txt = await res.text().catch(() => null);
+                console.log('Live stats poll: HTTP error', res.status, res.statusText, txt);
+                if (statusEl) statusEl.textContent = `Live stats: HTTP ${res.status}`;
+                return;
+            }
+            let j;
+            try { j = await res.json(); } catch (err) {
+                const txt = await res.text().catch(() => null);
+                console.log('Live stats poll: invalid JSON', txt);
+                if (statusEl) statusEl.textContent = 'Live stats: invalid JSON';
+                return;
+            }
+            if (!j.success || !j.stats) {
+                console.log('Live stats poll: API returned no stats', j);
+                if (statusEl) statusEl.textContent = 'Live stats: no stats';
+                return;
+            }
+            const s = j.stats;
+            // Update DOM values if present
+            const totalEl = document.getElementById('totalStudentsValue'); if (totalEl) totalEl.textContent = Number(s.total_students).toLocaleString();
+            const presentEl = document.getElementById('presentTodayValue'); if (presentEl) presentEl.textContent = Number(s.present_today).toLocaleString();
+            const absentEl = document.getElementById('absentTodayValue'); if (absentEl) absentEl.textContent = (Number(s.total_students) - Number(s.present_today)).toLocaleString();
+            const recordsEl = document.getElementById('totalRecordsValue'); if (recordsEl && s.total_records !== undefined) recordsEl.textContent = Number(s.total_records).toLocaleString();
+            // Update attendance rate display in Present Today footer
+            const presentFooter = document.querySelector('.stat-card-success .stat-card-footer span');
+            if (presentFooter) presentFooter.textContent = ` ${s.attendance_rate}% rate`;
+            if (statusEl) statusEl.textContent = `Live stats: updated ${new Date().toLocaleTimeString()}`;
+            console.log('Live stats poll: updated stats', s);
+        } catch (e) {
+            console.log('Live stats poll failed', e.message || e);
+            if (statusEl) statusEl.textContent = 'Live stats: error';
+        }
+    }
+
+    // Start polling every 5 seconds
+    setInterval(pollLiveStats, 5000);
+    // Run once on init
+    pollLiveStats();
     
 })();
 </script>

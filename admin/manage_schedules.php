@@ -43,28 +43,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "Schedule name is required.";
             $messageType = "error";
         } else {
-            try {
-                $stmt = $pdo->prepare("
-                    INSERT INTO attendance_schedules 
-                    (schedule_name, grade_level, section_id, 
-                     morning_start, morning_end, morning_late_after,
-                     afternoon_start, afternoon_end, afternoon_late_after,
-                     created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                ");
-                $stmt->execute([
-                    $scheduleName, $gradeLevel ?: null, $sectionId,
-                    $morningStart, $morningEnd, $morningLateAfter,
-                    $afternoonStart, $afternoonEnd, $afternoonLateAfter
-                ]);
-                
-                logAdminActivity('ADD_SCHEDULE', "Added schedule: {$scheduleName}");
-                
-                $message = "Schedule added successfully!";
-                $messageType = "success";
-            } catch (Exception $e) {
-                $message = "Error adding schedule: " . $e->getMessage();
-                $messageType = "error";
+            // Validate time inputs (format H:i)
+            $timeFields = [
+                'morning_start' => $morningStart,
+                'morning_end' => $morningEnd,
+                'morning_late_after' => $morningLateAfter,
+                'afternoon_start' => $afternoonStart,
+                'afternoon_end' => $afternoonEnd,
+                'afternoon_late_after' => $afternoonLateAfter,
+            ];
+            foreach ($timeFields as $k => $v) {
+                $d = DateTime::createFromFormat('H:i', $v);
+                if (!$d || $d->format('H:i') !== $v) {
+                    $message = "Invalid time format for {$k}: {$v}";
+                    $messageType = 'error';
+                    break;
+                }
+            }
+
+            if ($messageType !== 'error') {
+                try {
+                    // Ensure is_active defaults to 1 when creating a new schedule
+                    $stmt = $pdo->prepare("
+                        INSERT INTO attendance_schedules 
+                        (schedule_name, grade_level, section_id, 
+                         morning_start, morning_end, morning_late_after,
+                         afternoon_start, afternoon_end, afternoon_late_after,
+                         is_active, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ");
+                    $stmt->execute([
+                        $scheduleName, $gradeLevel ?: null, $sectionId,
+                        $morningStart, $morningEnd, $morningLateAfter,
+                        $afternoonStart, $afternoonEnd, $afternoonLateAfter,
+                        1
+                    ]);
+
+                    logAdminActivity('ADD_SCHEDULE', "Added schedule: {$scheduleName}");
+
+                    $message = "Schedule added successfully!";
+                    $messageType = "success";
+                } catch (Exception $e) {
+                    $message = "Error adding schedule: " . $e->getMessage();
+                    $messageType = "error";
+                }
             }
         }
     } elseif ($action === 'edit_schedule') {
@@ -82,7 +104,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $afternoonLateAfter = $_POST['afternoon_late_after'] ?? '13:30';
         
         $isActive = isset($_POST['is_active']) ? 1 : 0;
-        
+
+        // Validate time inputs for edit as well (format H:i)
+        $timeFields = [
+            'morning_start' => $morningStart,
+            'morning_end' => $morningEnd,
+            'morning_late_after' => $morningLateAfter,
+            'afternoon_start' => $afternoonStart,
+            'afternoon_end' => $afternoonEnd,
+            'afternoon_late_after' => $afternoonLateAfter,
+        ];
+        foreach ($timeFields as $k => $v) {
+            $d = DateTime::createFromFormat('H:i', $v);
+            if (!$d || $d->format('H:i') !== $v) {
+                $message = "Invalid time format for {$k}: {$v}";
+                $messageType = 'error';
+                break;
+            }
+        }
+
         try {
             $stmt = $pdo->prepare("
                 UPDATE attendance_schedules 

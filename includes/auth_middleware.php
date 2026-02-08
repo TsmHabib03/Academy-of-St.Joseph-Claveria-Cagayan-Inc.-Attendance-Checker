@@ -104,7 +104,7 @@ function getUserRole(): ?string {
 /**
  * Get current user's ID based on their role
  * 
- * @return string|null User ID (admin_id, employee_id, or lrn)
+ * @return string|null User ID (admin_id, employee_number, or lrn)
  */
 function getUserId(): ?string {
     if (!isAuthenticated()) {
@@ -117,7 +117,8 @@ function getUserId(): ?string {
         case ROLE_STUDENT:
             return $_SESSION['user_lrn'] ?? null;
         case ROLE_TEACHER:
-            return $_SESSION['user_employee_id'] ?? $_SESSION['admin_id'] ?? null;
+            // Prefer employee_number in session when available; keep admin_id as fallback
+            return $_SESSION['user_employee_number'] ?? $_SESSION['user_employee_id'] ?? $_SESSION['admin_id'] ?? null;
         default:
             return $_SESSION['admin_id'] ?? null;
     }

@@ -20,6 +20,27 @@ class BadgeEvaluator {
         $this->pdo = $pdo;
         $this->loadBadges();
     }
+
+    /**
+     * Column cache
+     * @var array
+     */
+    private $colCache = [];
+
+    private function columnExists(string $table, string $column): bool {
+        $key = $table . '::' . $column;
+        if (isset($this->colCache[$key])) return $this->colCache[$key];
+        try {
+            $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :col");
+            $stmt->execute([':table' => $table, ':col' => $column]);
+            $exists = $stmt->fetchColumn() > 0;
+            $this->colCache[$key] = $exists;
+            return $exists;
+        } catch (Exception $e) {
+            $this->colCache[$key] = false;
+            return false;
+        }
+    }
     
     /**
      * Load active badges from database
@@ -57,10 +78,13 @@ class BadgeEvaluator {
         
         // Evaluate for teachers
         try {
-            $stmt = $this->pdo->query("SELECT employee_id FROM teachers WHERE is_active = 1");
+            $stmt = $this->pdo->query("SELECT employee_number, employee_id FROM teachers WHERE is_active = 1");
             while ($teacher = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $teacherAwards = $this->evaluateUser('teacher', $teacher['employee_id']);
-                $awarded = array_merge($awarded, $teacherAwards);
+                $teacherId = $teacher['employee_number'] ?? $teacher['employee_id'] ?? null;
+                if ($teacherId) {
+                    $teacherAwards = $this->evaluateUser('teacher', $teacherId);
+                    $awarded = array_merge($awarded, $teacherAwards);
+                }
             }
         } catch (Exception $e) {
             error_log("Failed to evaluate teacher badges: " . $e->getMessage());
@@ -174,7 +198,11 @@ class BadgeEvaluator {
     private function checkPerfectAttendance(string $userType, string $userId, string $period): bool {
         try {
             $table = $userType === 'student' ? 'attendance' : 'teacher_attendance';
-            $idField = $userType === 'student' ? 'lrn' : 'employee_id';
+            if ($userType === 'student') {
+                $idField = 'lrn';
+            } else {
+                $idField = $this->columnExists('teacher_attendance', 'employee_number') ? 'employee_number' : 'employee_id';
+            }
             
             // Get period boundaries
             [$startDate, $endDate] = $this->getPeriodDates($period);
@@ -215,7 +243,11 @@ class BadgeEvaluator {
     private function checkOnTimeStreak(string $userType, string $userId, int $requiredStreak): bool {
         try {
             $table = $userType === 'student' ? 'attendance' : 'teacher_attendance';
-            $idField = $userType === 'student' ? 'lrn' : 'employee_id';
+            if ($userType === 'student') {
+                $idField = 'lrn';
+            } else {
+                $idField = $this->columnExists('teacher_attendance', 'employee_number') ? 'employee_number' : 'employee_id';
+            }
             
             // Get recent attendance records
             $stmt = $this->pdo->prepare("
@@ -260,7 +292,11 @@ class BadgeEvaluator {
     private function checkMostImproved(string $userType, string $userId, int $improvementPercent): bool {
         try {
             $table = $userType === 'student' ? 'attendance' : 'teacher_attendance';
-            $idField = $userType === 'student' ? 'lrn' : 'employee_id';
+            if ($userType === 'student') {
+                $idField = 'lrn';
+            } else {
+                $idField = $this->columnExists('teacher_attendance', 'employee_number') ? 'employee_number' : 'employee_id';
+            }
             
             // Compare this month to last month
             $stmt = $this->pdo->prepare("
@@ -312,7 +348,11 @@ class BadgeEvaluator {
     private function checkEarlyBird(string $userType, string $userId, int $requiredDays): bool {
         try {
             $table = $userType === 'student' ? 'attendance' : 'teacher_attendance';
-            $idField = $userType === 'student' ? 'lrn' : 'employee_id';
+            if ($userType === 'student') {
+                $idField = 'lrn';
+            } else {
+                $idField = $this->columnExists('teacher_attendance', 'employee_number') ? 'employee_number' : 'employee_id';
+            }
             
             // Get expected time
             $stmt = $this->pdo->prepare("
@@ -528,7 +568,7 @@ class BadgeEvaluator {
     public function getLeaderboard(string $userType, int $limit = 10): array {
         try {
             $nameTable = $userType === 'student' ? 'students' : 'teachers';
-            $nameField = $userType === 'student' ? 'lrn' : 'employee_id';
+            $nameField = $userType === 'student' ? 'lrn' : ($this->columnExists('teacher_attendance', 'employee_number') ? 'employee_number' : 'employee_id');
             
             $stmt = $this->pdo->prepare("
                 SELECT 

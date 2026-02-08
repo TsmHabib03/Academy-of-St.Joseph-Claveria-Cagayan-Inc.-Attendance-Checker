@@ -17,19 +17,33 @@ try {
     $total_students_query = "SELECT COUNT(*) as total FROM students";
     $total_students_stmt = $db->prepare($total_students_query);
     $total_students_stmt->execute();
-    $total_students = $total_students_stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
-     // Get present today - consider V3 columns (morning/afternoon) with fallback to legacy `time_in`
-     $present_today_query = "SELECT COUNT(*) as present FROM attendance WHERE date = :today
-                                      AND (
-                                          morning_time_in IS NOT NULL OR
-                                          afternoon_time_in IS NOT NULL OR
-                                          time_in IS NOT NULL
-                                      )";
-     $present_today_stmt = $db->prepare($present_today_query);
-     $present_today_stmt->bindParam(':today', $today);
-     $present_today_stmt->execute();
-     $present_today = $present_today_stmt->fetch(PDO::FETCH_ASSOC)['present'];
+    $total_students = (int)$total_students_stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    // Get present today - build query dynamically based on available attendance columns
+    $colsStmt = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance'");
+    $colsStmt->execute();
+    $cols = $colsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $timeInCandidates = ['morning_time_in', 'afternoon_time_in', 'time_in'];
+    $whereParts = [];
+    foreach ($timeInCandidates as $c) {
+        if (in_array($c, $cols)) $whereParts[] = "a.$c IS NOT NULL";
+    }
+
+    if (empty($whereParts)) {
+        $present_today = 0;
+    } else {
+        $present_today_query = "SELECT COUNT(DISTINCT a.lrn) as present FROM attendance a WHERE a.date = :today AND (" . implode(' OR ', $whereParts) . ")";
+        $present_today_stmt = $db->prepare($present_today_query);
+        $present_today_stmt->bindParam(':today', $today);
+        $present_today_stmt->execute();
+        $present_today = (int)$present_today_stmt->fetch(PDO::FETCH_ASSOC)['present'];
+    }
+
+    // Total records
+    $total_records_stmt = $db->prepare("SELECT COUNT(*) as total FROM attendance");
+    $total_records_stmt->execute();
+    $total_records = (int)$total_records_stmt->fetch(PDO::FETCH_ASSOC)['total'];
     
     // Calculate attendance rate
     $attendance_rate = $total_students > 0 ? round(($present_today / $total_students) * 100, 1) : 0;
@@ -39,7 +53,8 @@ try {
         'stats' => [
             'total_students' => $total_students,
             'present_today' => $present_today,
-            'attendance_rate' => $attendance_rate
+            'attendance_rate' => $attendance_rate,
+            'total_records' => $total_records
         ]
     ]);
     

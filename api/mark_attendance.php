@@ -73,16 +73,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
  * @param array $details Attendance details (time, date, section)
  * @return bool True if email sent successfully
  */
-function sendAttendanceEmail($emailConfig, $student, $type, $details) {
+function sendAttendanceEmail($emailConfig, $student, $type, $details, $userType = 'student') {
     try {
         // Check if email notifications are enabled
         if (!$emailConfig['send_on_' . $type]) {
             return true; // Disabled, return success
         }
         
-        // Validate parent email
-        if (empty($student['email']) || !filter_var($student['email'], FILTER_VALIDATE_EMAIL)) {
-            error_log("Invalid parent email for LRN: " . $student['lrn']);
+        // Determine recipient email based on user type
+        $recipientEmail = $student['email'] ?? '';
+        if (empty($recipientEmail) || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            error_log("Invalid email for user: " . ($student['lrn'] ?? 'unknown'));
             return false;
         }
         
@@ -101,7 +102,9 @@ function sendAttendanceEmail($emailConfig, $student, $type, $details) {
         // Sender and recipient
         $mail->setFrom($emailConfig['from_email'], $emailConfig['from_name']);
         $mail->addReplyTo($emailConfig['reply_to_email'], $emailConfig['reply_to_name']);
-        $mail->addAddress($student['email'], 'Parent/Guardian');
+        // If teacher, send to teacher's email; otherwise send to parent/guardian
+        $recipientName = ($userType === 'teacher') ? trim(($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? '')) : 'Parent/Guardian';
+        $mail->addAddress($recipientEmail, $recipientName);
         
         // Email subject
         $studentName = trim($student['first_name'] . ' ' . ($student['middle_name'] ?? '') . ' ' . $student['last_name']);
@@ -109,10 +112,10 @@ function sendAttendanceEmail($emailConfig, $student, $type, $details) {
         
         // HTML Email body
         $mail->isHTML(true);
-        $mail->Body = generateEmailTemplate($emailConfig, $student, $type, $details);
+        $mail->Body = generateEmailTemplate($emailConfig, $student, $type, $details, $userType);
         
         // Plain text alternative
-        $mail->AltBody = generatePlainTextEmail($student, $type, $details);
+        $mail->AltBody = generatePlainTextEmail($student, $type, $details, $userType);
         
         // Send email
         $mail->send();
@@ -128,7 +131,7 @@ function sendAttendanceEmail($emailConfig, $student, $type, $details) {
 /**
  * Generate HTML email template
  */
-function generateEmailTemplate($emailConfig, $student, $type, $details) {
+function generateEmailTemplate($emailConfig, $student, $type, $details, $userType = 'student') {
     $studentName = trim($student['first_name'] . ' ' . ($student['middle_name'] ?? '') . ' ' . $student['last_name']);
     $statusColor = ($type === 'time_in') ? '#4CAF50' : '#FF9800';
     $statusText = ($type === 'time_in') ? 'Arrived at School' : 'Left School';
@@ -186,15 +189,15 @@ function generateEmailTemplate($emailConfig, $student, $type, $details) {
                             '<div style="display:flex;align-items:center;gap:12px;">' .
                                 '<div style="width:44px;height:44px;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,0.06);">' . $svgUser . '</div>' .
                                 '<div>' .
-                                    '<div style="font-size:14px;color:#888;text-transform:uppercase;letter-spacing:0.6px;font-weight:600;">Student</div>' .
-                                    '<div style="font-size:18px;color:#222;font-weight:700;margin-top:4px;">' . htmlspecialchars($studentName) . '</div>' .
+                                                            '<div style="font-size:14px;color:#888;text-transform:uppercase;letter-spacing:0.6px;font-weight:600;">' . ($userType === 'teacher' ? 'Teacher' : 'Student') . '</div>' .
+                                                            '<div style="font-size:18px;color:#222;font-weight:700;margin-top:4px;">' . htmlspecialchars($studentName) . '</div>' .
                                 '</div>' .
                             '</div>' .
                         '</td></tr>' .
                         '<tr><td style="padding-top:6px;">' .
                             '<table width="100%" cellpadding="6" cellspacing="0" role="presentation">' .
-                                '<tr><td style="width:30%;font-size:12px;color:#666;">' . $svgDoc . ' <span style="margin-left:6px;">LRN</span></td><td style="text-align:right;font-weight:600;color:#222;">' . htmlspecialchars($student['lrn']) . '</td></tr>' .
-                                '<tr><td style="width:30%;font-size:12px;color:#666;">' . $svgMap . ' <span style="margin-left:6px;">Section</span></td><td style="text-align:right;font-weight:600;color:#222;">' . htmlspecialchars($student['class']) . '</td></tr>' .
+                                '<tr><td style="width:30%;font-size:12px;color:#666;">' . $svgDoc . ' <span style="margin-left:6px;">' . ($userType === 'teacher' ? 'Employee Number' : 'LRN') . '</span></td><td style="text-align:right;font-weight:600;color:#222;">' . htmlspecialchars(($userType === 'teacher') ? ($student['employee_number'] ?? $student['employee_id'] ?? '') : ($student['lrn'] ?? '')) . '</td></tr>' .
+                                '<tr><td style="width:30%;font-size:12px;color:#666;">' . $svgMap . ' <span style="margin-left:6px;">' . ($userType === 'teacher' ? 'Department' : 'Section') . '</span></td><td style="text-align:right;font-weight:600;color:#222;">' . htmlspecialchars($student['class'] ?? $student['department'] ?? '') . '</td></tr>' .
                             '</table>' .
                         '</td></tr>' .
                     '</table>' .
@@ -229,17 +232,21 @@ function generateEmailTemplate($emailConfig, $student, $type, $details) {
 /**
  * Generate plain text email (fallback)
  */
-function generatePlainTextEmail($student, $type, $details) {
+function generatePlainTextEmail($student, $type, $details, $userType = 'student') {
     $studentName = trim($student['first_name'] . ' ' . ($student['middle_name'] ?? '') . ' ' . $student['last_name']);
     $statusText = ($type === 'time_in') ? 'Arrived at School' : 'Left School';
     
+    $recipientLabel = ($userType === 'teacher') ? 'Teacher' : 'Parent/Guardian';
+    $identifierLabel = ($userType === 'teacher') ? 'Employee ID' : 'LRN';
+    $identifier = $student['lrn'] ?? $student['employee_number'] ?? $student['employee_id'] ?? '';
+
     return "ATTENDANCE ALERT\n\n" .
-           "Dear Parent/Guardian,\n\n" .
+           "Dear $recipientLabel,\n\n" .
            "Status: $statusText\n\n" .
-           "Student Details:\n" .
+           "$recipientLabel Details:\n" .
            "Name: $studentName\n" .
-           "LRN: {$student['lrn']}\n" .
-           "Section: {$student['class']}\n" .
+           "$identifierLabel: $identifier\n" .
+           "Section/Department: " . ($student['class'] ?? $student['department'] ?? '') . "\n" .
            "Date: {$details['date']}\n" .
            ($type === 'time_in' ? 'Time In' : 'Time Out') . ": {$details['time']}\n\n" .
            "This is an automated notification from the school attendance system.\n\n" .
@@ -256,7 +263,7 @@ function generatePlainTextEmail($student, $type, $details) {
  * @param array $details Attendance details (time, date, section)
  * @return bool True if SMS sent successfully
  */
-function sendAttendanceSms($db, $student, $type, $details) {
+function sendAttendanceSms($db, $student, $type, $details, $userType = 'student') {
     try {
         $smsSender = new SmsSender($db);
         
@@ -285,9 +292,9 @@ function sendAttendanceSms($db, $student, $type, $details) {
             return true; // Not an error, just disabled for this type
         }
         
-        // Build SMS message using template
-        $template = $smsConfig['templates'][$type]['student'] ?? 
-                    "{name} has " . ($type === 'time_in' ? 'arrived at' : 'left') . " school at {time} on {date}.";
+        // Build SMS message using template; choose teacher template when appropriate
+        $template = $smsConfig['templates'][$type][$userType] ?? $smsConfig['templates'][$type]['student'] ?? 
+                "{name} has " . ($type === 'time_in' ? 'arrived at' : 'left') . " school at {time} on {date}.";
         
         $message = str_replace(
             ['{name}', '{date}', '{time}', '{section}', '{school}'],
@@ -302,11 +309,13 @@ function sendAttendanceSms($db, $student, $type, $details) {
         );
         
         // Send the SMS
+        $recipientType = ($userType === 'teacher') ? 'teacher' : 'parent';
+        $recipientId = $student['lrn'] ?? $student['employee_number'] ?? $student['employee_id'] ?? '';
         $result = $smsSender->send(
             $student['mobile_number'],
             $message,
-            'parent',
-            $student['lrn'],
+            $recipientType,
+            $recipientId,
             $type
         );
         
@@ -334,16 +343,26 @@ try {
     }
     
     $scannedCode = trim($_POST['lrn'] ?? '');
-    
+
     if (empty($scannedCode)) {
         throw new Exception('QR code data is required');
     }
-    
-    // Determine if this is a student LRN (11-13 digits) or teacher employee_id
-    $isStudent = preg_match('/^[0-9]{11,13}$/', $scannedCode);
+
+    // Allow teacher QR payloads prefixed with TEACHER: (e.g. TEACHER:EMP-2026-001)
     $isTeacher = false;
     $user = null;
     $userType = 'student';
+
+    if (stripos($scannedCode, 'TEACHER:') === 0) {
+        // Teacher QR payload (uses Employee Number - 7 digits)
+        $employeeNumber = substr($scannedCode, 8);
+        $isTeacher = true;
+        $userType = 'teacher';
+        $scannedCode = $employeeNumber; // normalize for further queries
+    }
+
+    // Determine if this is a student LRN (11-13 digits)
+    $isStudent = preg_match('/^[0-9]{11,13}$/', $scannedCode);
     
     if ($isStudent) {
         // Get student details
@@ -364,17 +383,37 @@ try {
     
     // If not a student, check if it's a teacher
     if (!$isStudent) {
-        $teacher_query = "SELECT * FROM teachers WHERE employee_id = :code";
-        $teacher_stmt = $db->prepare($teacher_query);
-        $teacher_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
-        $teacher_stmt->execute();
-        
-        if ($teacher_stmt->rowCount() > 0) {
-            $user = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
-            $user['lrn'] = $scannedCode; // Use employee_id as the identifier
-            $user['class'] = $user['department'] ?? 'Faculty';
-            $isTeacher = true;
-            $userType = 'teacher';
+        // Determine which identifier columns exist on `teachers`
+        $colCheck = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'teachers'");
+        $colCheck->execute();
+        $teacherCols = $colCheck->fetchAll(PDO::FETCH_COLUMN);
+
+        $hasEmpNum = in_array('employee_number', $teacherCols);
+        $hasEmpId = in_array('employee_id', $teacherCols);
+
+        if ($hasEmpNum && $hasEmpId) {
+            $teacher_query = "SELECT * FROM teachers WHERE employee_number = :code OR employee_id = :code LIMIT 1";
+        } elseif ($hasEmpNum) {
+            $teacher_query = "SELECT * FROM teachers WHERE employee_number = :code LIMIT 1";
+        } elseif ($hasEmpId) {
+            $teacher_query = "SELECT * FROM teachers WHERE employee_id = :code LIMIT 1";
+        } else {
+            // No identifier columns found on teachers table
+            $teacher_query = null;
+        }
+
+        if ($teacher_query) {
+            $teacher_stmt = $db->prepare($teacher_query);
+            $teacher_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+            $teacher_stmt->execute();
+
+            if ($teacher_stmt->rowCount() > 0) {
+                $user = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
+                $user['lrn'] = $scannedCode; // Use employee_number/employee_id as identifier (backwards compatible)
+                $user['class'] = $user['department'] ?? 'Faculty';
+                $isTeacher = true;
+                $userType = 'teacher';
+            }
         }
     }
     
@@ -398,6 +437,7 @@ try {
     try {
         // Use the appropriate table based on user type
         $attendanceTable = $isTeacher ? 'teacher_attendance' : 'attendance';
+        // idColumn will point to the identifier column in attendance table
         $idColumn = $isTeacher ? 'employee_id' : 'lrn';
         $userLabel = $isTeacher ? 'Teacher' : 'Student';
 
@@ -439,7 +479,68 @@ try {
             ];
         }
 
-        // Determine session (morning|afternoon) based on current time and schedule
+        // Normalize schedule time fields to H:i:s and provide safe defaults on parse failure
+        $scheduleDefaults = [
+            'morning_start' => '06:00:00',
+            'morning_end' => '11:59:00',
+            'morning_late_after' => '07:30:00',
+            'afternoon_start' => '12:00:00',
+            'afternoon_end' => '18:00:00',
+            'afternoon_late_after' => '13:30:00'
+        ];
+        $timeKeys = array_keys($scheduleDefaults);
+        foreach ($timeKeys as $tk) {
+            $val = $schedule[$tk] ?? '';
+            if (empty($val)) { $schedule[$tk] = $scheduleDefaults[$tk]; continue; }
+
+            $parsed = false;
+            // Try common formats
+            $formats = ['H:i:s', 'H:i', 'g:i A', 'g:i a'];
+            foreach ($formats as $fmt) {
+                $dt = DateTime::createFromFormat($fmt, $val);
+                if ($dt && $dt->format($fmt) === $val) { $schedule[$tk] = $dt->format('H:i:s'); $parsed = true; break; }
+            }
+            if (!$parsed) {
+                try {
+                    $dt = new DateTime($val);
+                    $schedule[$tk] = $dt->format('H:i:s');
+                    $parsed = true;
+                } catch (Exception $e) {
+                    $schedule[$tk] = $scheduleDefaults[$tk];
+                }
+            }
+        }
+
+        // Determine assigned session (AM/PM) from teacher.shift or sections.shift when available
+        $assignedSession = null; // 'morning' or 'afternoon' or null
+        try {
+            if ($isTeacher) {
+                if (!empty($user['shift'])) {
+                    $s = strtolower(trim($user['shift']));
+                    if (strpos($s, 'am') !== false) { $assignedSession = 'morning'; }
+                    elseif (strpos($s, 'pm') !== false) { $assignedSession = 'afternoon'; }
+                }
+            } else {
+                // If sections table has a 'shift' column, prefer it
+                $secCol = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sections' AND COLUMN_NAME = 'shift'");
+                $secCol->execute();
+                if ($secCol->fetchColumn()) {
+                    $secStmt = $db->prepare("SELECT shift FROM sections WHERE section_name = :section LIMIT 1");
+                    $secStmt->bindParam(':section', $student_section_name, PDO::PARAM_STR);
+                    $secStmt->execute();
+                    $shiftVal = $secStmt->fetchColumn();
+                    if ($shiftVal !== false && $shiftVal !== null) {
+                        $sv = strtolower(trim($shiftVal));
+                        if (strpos($sv, 'am') !== false) { $assignedSession = 'morning'; }
+                        elseif (strpos($sv, 'pm') !== false) { $assignedSession = 'afternoon'; }
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log('Session assignment check failed: ' . $e->getMessage());
+        }
+
+        // Determine session (morning|afternoon) based on assigned session (from teacher/section) or current time
         $t = strtotime($current_time);
         $morning_start = strtotime($schedule['morning_start']);
         $morning_end = strtotime($schedule['morning_end']);
@@ -448,22 +549,73 @@ try {
         $afternoon_end = strtotime($schedule['afternoon_end']);
         $afternoon_late = strtotime($schedule['afternoon_late_after']);
 
-        if ($t >= $morning_start && $t <= $morning_end) {
+        if ($assignedSession === 'morning') {
             $session = 'morning';
-            $in_col = 'morning_time_in';
-            $out_col = 'morning_time_out';
+            $preferred_in = 'morning_time_in';
+            $preferred_out = 'morning_time_out';
             $is_late = ($t > $morning_late);
-        } elseif ($t >= $afternoon_start && $t <= $afternoon_end) {
+        } elseif ($assignedSession === 'afternoon') {
             $session = 'afternoon';
-            $in_col = 'afternoon_time_in';
-            $out_col = 'afternoon_time_out';
+            $preferred_in = 'afternoon_time_in';
+            $preferred_out = 'afternoon_time_out';
             $is_late = ($t > $afternoon_late);
         } else {
-            // Out-of-schedule: default to morning logic
-            $session = 'morning';
-            $in_col = 'morning_time_in';
-            $out_col = 'morning_time_out';
-            $is_late = ($t > $morning_late);
+            if ($t >= $morning_start && $t <= $morning_end) {
+                $session = 'morning';
+                $preferred_in = 'morning_time_in';
+                $preferred_out = 'morning_time_out';
+                $is_late = ($t > $morning_late);
+            } elseif ($t >= $afternoon_start && $t <= $afternoon_end) {
+                $session = 'afternoon';
+                $preferred_in = 'afternoon_time_in';
+                $preferred_out = 'afternoon_time_out';
+                $is_late = ($t > $afternoon_late);
+            } else {
+                // Out-of-schedule: default to morning logic
+                $session = 'morning';
+                $preferred_in = 'morning_time_in';
+                $preferred_out = 'morning_time_out';
+                $is_late = ($t > $morning_late);
+            }
+        }
+
+        // Ensure chosen columns exist in the attendance table; fallback to legacy `time_in`/`time_out` if necessary
+        $colCheckStmt = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '" . ($isTeacher ? 'teacher_attendance' : 'attendance') . "'");
+        $colCheckStmt->execute();
+        $attendanceCols = $colCheckStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // If teacher and attendance table has employee_number column, prefer it
+        if ($isTeacher && in_array('employee_number', $attendanceCols)) {
+            $idColumn = 'employee_number';
+        }
+
+        $in_col = null;
+        $out_col = null;
+
+        // Prefer the session-specific columns, fallback to legacy names
+        if (in_array($preferred_in, $attendanceCols)) {
+            $in_col = $preferred_in;
+        } elseif (in_array('time_in', $attendanceCols)) {
+            $in_col = 'time_in';
+        } else {
+            // Look for any column that ends with '_time_in' as a fallback
+            foreach ($attendanceCols as $ac) {
+                if (preg_match('/time_in$/', $ac)) { $in_col = $ac; break; }
+            }
+        }
+
+        if (in_array($preferred_out, $attendanceCols)) {
+            $out_col = $preferred_out;
+        } elseif (in_array('time_out', $attendanceCols)) {
+            $out_col = 'time_out';
+        } else {
+            foreach ($attendanceCols as $ac) {
+                if (preg_match('/time_out$/', $ac)) { $out_col = $ac; break; }
+            }
+        }
+
+        if ($in_col === null || $out_col === null) {
+            throw new Exception('Attendance table missing expected time columns. Please run the migration to add morning/afternoon time columns or ensure legacy time_in/time_out exist.');
         }
 
         // Use SELECT ... FOR UPDATE to lock the row and prevent race conditions
@@ -495,7 +647,7 @@ try {
             $status = $is_late ? 'late' : 'present';
 
             if ($isTeacher) {
-                $insert_query = "INSERT INTO teacher_attendance (employee_id, department, date, {$in_col}, status) 
+                $insert_query = "INSERT INTO teacher_attendance (employee_number, department, date, {$in_col}, status) 
                                 VALUES (:code, :section, :date, :time_in, :status)";
             } else {
                 $insert_query = "INSERT INTO attendance (lrn, section, date, {$in_col}, status) 
@@ -515,12 +667,10 @@ try {
 
             $db->commit();
 
-            // Notifications for students only
-            if (!$isTeacher) {
-                $emailDetails = $prepareEmailDetails();
-                try { sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); }
-                try { sendAttendanceSms($db, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); }
-            }
+            // Notifications (students and teachers)
+            $emailDetails = $prepareEmailDetails();
+            try { sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails, $userType); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); }
+            try { sendAttendanceSms($db, $student, 'time_in', $emailDetails, $userType); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); }
 
             ob_end_clean();
             echo json_encode([
@@ -555,10 +705,21 @@ try {
                 }
 
                 $db->commit();
-                if (!$isTeacher) { $emailDetails = $prepareEmailDetails(); try { sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); } try { sendAttendanceSms($db, $student, 'time_in', $emailDetails); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); } }
+                $emailDetails = $prepareEmailDetails(); try { sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails, $userType); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); } try { sendAttendanceSms($db, $student, 'time_in', $emailDetails, $userType); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); }
 
                 ob_end_clean();
-                echo json_encode(['success' => true, 'status' => 'time_in', 'session' => $session, 'late' => $is_late, 'message' => $userLabel . ' Time In recorded successfully!', 'time_in' => date('h:i A', strtotime($current_time)), 'date' => date('F j, Y', strtotime($today))]);
+                echo json_encode([
+                    'success' => true,
+                    'status' => 'time_in',
+                    'session' => $session,
+                    'late' => $is_late,
+                    'message' => $userLabel . ' Time In recorded successfully!',
+                    'student_name' => ($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''),
+                    'user_type' => $userType,
+                    'identifier' => $scannedCode,
+                    'time_in' => date('h:i A', strtotime($current_time)),
+                    'date' => date('F j, Y', strtotime($today))
+                ]);
                 exit;
 
             } elseif ($existing_in !== null && ($existing_out === null)) {
@@ -575,12 +736,10 @@ try {
 
                 $db->commit();
 
-                // Notifications for students only
-                if (!$isTeacher) {
-                    $emailDetails = $prepareEmailDetails();
-                    try { sendAttendanceEmail($emailConfig, $student, 'time_out', $emailDetails); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); }
-                    try { sendAttendanceSms($db, $student, 'time_out', $emailDetails); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); }
-                }
+                // Notifications (students and teachers)
+                $emailDetails = $prepareEmailDetails();
+                try { sendAttendanceEmail($emailConfig, $student, 'time_out', $emailDetails, $userType); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); }
+                try { sendAttendanceSms($db, $student, 'time_out', $emailDetails, $userType); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); }
 
                 // Calculate duration using session in time
                 $time_in_val = $existing_in;
@@ -597,6 +756,9 @@ try {
                     'status' => 'time_out',
                     'session' => $session,
                     'message' => $userLabel . ' Time Out recorded successfully!',
+                    'student_name' => ($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''),
+                    'user_type' => $userType,
+                    'identifier' => $scannedCode,
                     'time_out' => date('h:i A', strtotime($current_time)),
                     'duration' => $duration,
                     'date' => date('F j, Y', strtotime($today))
@@ -623,10 +785,21 @@ try {
 } catch (PDOException $e) {
     ob_end_clean();
     error_log("Attendance DB Error: " . $e->getMessage());
+
+    // Default message for end users
+    $userMessage = 'Database error occurred. Please try again.';
+
+    // Expose debug details only when explicitly requested from localhost
+    $debugSuffix = '';
+    $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+    if ((isset($_POST['debug']) && $_POST['debug'] == '1') && in_array($remoteAddr, ['127.0.0.1', '::1'])) {
+        $debugSuffix = ' Debug: ' . $e->getMessage();
+    }
+
     echo json_encode([
         'success' => false,
         'status' => 'error',
-        'message' => 'Database error occurred. Please try again.'
+        'message' => $userMessage . $debugSuffix
     ]);
 } catch (Exception $e) {
     ob_end_clean();

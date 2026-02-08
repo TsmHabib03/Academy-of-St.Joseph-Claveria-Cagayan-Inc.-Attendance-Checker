@@ -881,7 +881,7 @@
             </div>
             <div class="manual-modal-body">
                 <div class="manual-help-text">
-                    <i class="fas fa-info-circle"></i> If the camera isn't working, you can manually enter the student's LRN (12-digit number).
+                    <i class="fas fa-info-circle"></i> If the camera isn't working, you can manually enter the student's LRN (11-13 digits) or a teacher's 7-digit Employee Number.
                 </div>
                 <form id="manual-form">
                     <div class="form-group">
@@ -893,8 +893,8 @@
                             id="manual-lrn" 
                             name="lrn" 
                             class="form-control" 
-                            placeholder="Enter 12-digit LRN"
-                            pattern="[0-9]{11,13}"
+                            placeholder="Enter 11-13 digit LRN or 7-digit Employee Number"
+                            pattern="([0-9]{11,13}|[0-9]{7})"
                             maxlength="13"
                             inputmode="numeric"
                             required
@@ -1188,16 +1188,23 @@
         function showSuccess(data) {
             // Update success title based on action
             const titleElement = document.getElementById('success-title');
+            // If API marked a teacher, adjust labels accordingly
+            const userType = data.user_type || 'student';
             if (data.status === 'time_in') {
-                titleElement.textContent = 'Welcome! ✓';
+                titleElement.textContent = (userType === 'teacher') ? 'Welcome Teacher! ✓' : 'Welcome! ✓';
             } else if (data.status === 'time_out') {
-                titleElement.textContent = 'See You! ✓';
+                titleElement.textContent = (userType === 'teacher') ? 'See You Teacher! ✓' : 'See You! ✓';
             } else {
                 titleElement.textContent = 'Success! ✓';
             }
-            
-            // Update student info
-            document.getElementById('success-student').textContent = data.student_name || 'Student';
+
+            // Update displayed name/label; include identifier for teachers
+            const displayName = data.student_name || (userType === 'teacher' ? 'Teacher' : 'Student');
+            if (userType === 'teacher' && data.identifier) {
+                document.getElementById('success-student').textContent = `${displayName} (${data.identifier})`;
+            } else {
+                document.getElementById('success-student').textContent = displayName;
+            }
             
             // Format time display
             const timeLabel = data.status === 'time_in' ? 'Time In' : 
@@ -1258,9 +1265,9 @@
             const lrn = lrnInput.value.trim();
             const errorDiv = document.getElementById('lrn-error');
             
-            // Validate LRN format (11-13 digits)
-            if (!/^\d{11,13}$/.test(lrn)) {
-                errorDiv.textContent = 'Please enter a valid 11-13 digit LRN';
+            // Validate LRN or Employee Number (7 OR 11-13 digits)
+            if (!/^(?:\d{11,13}|\d{7})$/.test(lrn)) {
+                errorDiv.textContent = 'Please enter a valid 11-13 digit LRN or 7-digit Employee Number';
                 errorDiv.classList.add('active');
                 lrnInput.style.borderColor = 'var(--error-500)';
                 return;
@@ -1284,9 +1291,9 @@
             
             // Only allow numbers
             input.value = value.replace(/[^\d]/g, '');
-            
-            // Clear error if valid length
-            if (input.value.length >= 11 && input.value.length <= 13) {
+
+            // Accept either 7 digits (employee number) or 11-13 digits (LRN)
+            if ((input.value.length >= 11 && input.value.length <= 13) || input.value.length === 7) {
                 errorDiv.classList.remove('active');
                 input.style.borderColor = 'var(--success-500)';
             } else if (input.value.length > 0) {

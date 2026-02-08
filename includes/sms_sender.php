@@ -523,7 +523,7 @@ class SmsSender {
             $mobileNumber,
             $message,
             $userType === 'student' ? 'parent' : 'teacher',
-            $userData['lrn'] ?? $userData['employee_id'] ?? '',
+            $userData['lrn'] ?? $userData['employee_number'] ?? $userData['employee_id'] ?? '',
             $notificationType
         );
     }
