@@ -19,13 +19,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
     header('Content-Type: application/json');
     
     try {
-        // Detect whether the `sections` table has a `shift` column (safe runtime check)
+        // Detect which optional columns exist on `sections` (safe runtime check)
         $currentDb = $pdo->query("SELECT DATABASE()")->fetchColumn();
+        $sectionCols = [];
         $hasShiftColumn = false;
+        $hasSessionColumn = false;
+        $hasAmStartTime = false;
+        $hasAmLateThreshold = false;
+        $hasAmEndTime = false;
+        $hasPmStartTime = false;
+        $hasPmLateThreshold = false;
+        $hasPmEndTime = false;
         if ($currentDb) {
-            $colStmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'sections' AND COLUMN_NAME = 'shift'");
+            $colStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'sections'");
             $colStmt->execute([$currentDb]);
-            $hasShiftColumn = (int)$colStmt->fetchColumn() > 0;
+            $sectionCols = $colStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            $hasShiftColumn = in_array('shift', $sectionCols, true);
+            $hasSessionColumn = in_array('session', $sectionCols, true);
+            $hasAmStartTime = in_array('am_start_time', $sectionCols, true);
+            $hasAmLateThreshold = in_array('am_late_threshold', $sectionCols, true);
+            $hasAmEndTime = in_array('am_end_time', $sectionCols, true);
+            $hasPmStartTime = in_array('pm_start_time', $sectionCols, true);
+            $hasPmLateThreshold = in_array('pm_late_threshold', $sectionCols, true);
+            $hasPmEndTime = in_array('pm_end_time', $sectionCols, true);
+                $hasScheduleId = in_array('schedule_id', $sectionCols, true);
+                $hasUsesCustomSchedule = in_array('uses_custom_schedule', $sectionCols, true);
         }
 
         $action = $_POST['action'] ?? '';
@@ -35,6 +53,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $section_name = trim($_POST['section_name'] ?? '');
             $grade_level = trim($_POST['grade_level'] ?? '');
             $adviser = trim($_POST['adviser'] ?? '');
+            $session = trim($_POST['session'] ?? '');
+            $am_start_time = trim($_POST['am_start_time'] ?? '');
+            $am_late_threshold = trim($_POST['am_late_threshold'] ?? '');
+            $am_end_time = trim($_POST['am_end_time'] ?? '');
+            $pm_start_time = trim($_POST['pm_start_time'] ?? '');
+            $pm_late_threshold = trim($_POST['pm_late_threshold'] ?? '');
+            $pm_end_time = trim($_POST['pm_end_time'] ?? '');
             $school_year = trim($_POST['school_year'] ?? '');
             
             if (empty($section_name)) {
@@ -49,13 +74,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             }
             
             $shift = trim($_POST['shift'] ?? '');
+            $columns = ['section_name', 'grade_level', 'adviser', 'school_year'];
+            $values = [$section_name, $grade_level, $adviser, $school_year];
+
+            $schedule_id = !empty($_POST['schedule_id']) ? intval($_POST['schedule_id']) : null;
+            $uses_custom_schedule = !empty($_POST['uses_custom_schedule']) ? 1 : 0;
+
             if ($hasShiftColumn) {
-                $stmt = $pdo->prepare("INSERT INTO sections (section_name, grade_level, adviser, school_year, shift) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $shift]);
-            } else {
-                $stmt = $pdo->prepare("INSERT INTO sections (section_name, grade_level, adviser, school_year) VALUES (?, ?, ?, ?)");
-                $stmt->execute([$section_name, $grade_level, $adviser, $school_year]);
+                $columns[] = 'shift';
+                $values[] = $shift;
             }
+            if ($hasSessionColumn) {
+                $columns[] = 'session';
+                $values[] = $session;
+            }
+            if ($hasAmStartTime) {
+                $columns[] = 'am_start_time';
+                $values[] = $am_start_time;
+            }
+            if ($hasAmLateThreshold) {
+                $columns[] = 'am_late_threshold';
+                $values[] = $am_late_threshold;
+            }
+            if ($hasAmEndTime) {
+                $columns[] = 'am_end_time';
+                $values[] = $am_end_time;
+            }
+            if ($hasPmStartTime) {
+                $columns[] = 'pm_start_time';
+                $values[] = $pm_start_time;
+            }
+            if ($hasPmLateThreshold) {
+                $columns[] = 'pm_late_threshold';
+                $values[] = $pm_late_threshold;
+            }
+            if ($hasPmEndTime) {
+                $columns[] = 'pm_end_time';
+                $values[] = $pm_end_time;
+            }
+            if ($hasScheduleId) {
+                $columns[] = 'schedule_id';
+                $values[] = $schedule_id;
+            }
+            if ($hasUsesCustomSchedule) {
+                $columns[] = 'uses_custom_schedule';
+                $values[] = $uses_custom_schedule;
+            }
+
+            $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+            $stmt = $pdo->prepare("INSERT INTO sections (" . implode(', ', $columns) . ") VALUES ({$placeholders})");
+            $stmt->execute($values);
             
             logAdminActivity('ADD_SECTION', "Added section: $section_name");
             
@@ -67,6 +135,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $section_name = trim($_POST['section_name'] ?? '');
             $grade_level = trim($_POST['grade_level'] ?? '');
             $adviser = trim($_POST['adviser'] ?? '');
+            $session = trim($_POST['session'] ?? '');
+            $am_start_time = trim($_POST['am_start_time'] ?? '');
+            $am_late_threshold = trim($_POST['am_late_threshold'] ?? '');
+            $am_end_time = trim($_POST['am_end_time'] ?? '');
+            $pm_start_time = trim($_POST['pm_start_time'] ?? '');
+            $pm_late_threshold = trim($_POST['pm_late_threshold'] ?? '');
+            $pm_end_time = trim($_POST['pm_end_time'] ?? '');
             $school_year = trim($_POST['school_year'] ?? '');
             // Keep existing is_active value; status is no longer editable from this form
             // We will not modify `is_active` here to avoid accidental deactivation.
@@ -85,16 +160,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             }
             
             $pdo->beginTransaction();
-
             // Update section (do not change is_active here)
             $shift = trim($_POST['shift'] ?? '');
+            $setParts = ['section_name = ?', 'grade_level = ?', 'adviser = ?', 'school_year = ?'];
+            $values = [$section_name, $grade_level, $adviser, $school_year];
+
+            $schedule_id = isset($_POST['schedule_id']) ? (int)$_POST['schedule_id'] : null;
+            $uses_custom_schedule = !empty($_POST['uses_custom_schedule']) ? 1 : 0;
+
             if ($hasShiftColumn) {
-                $stmt = $pdo->prepare("UPDATE sections SET section_name = ?, grade_level = ?, adviser = ?, school_year = ?, shift = ? WHERE id = ?");
-                $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $shift, $id]);
-            } else {
-                $stmt = $pdo->prepare("UPDATE sections SET section_name = ?, grade_level = ?, adviser = ?, school_year = ? WHERE id = ?");
-                $stmt->execute([$section_name, $grade_level, $adviser, $school_year, $id]);
+                $setParts[] = 'shift = ?';
+                $values[] = $shift;
             }
+            if ($hasSessionColumn) {
+                $setParts[] = 'session = ?';
+                $values[] = $session;
+            }
+            if ($hasAmStartTime) {
+                $setParts[] = 'am_start_time = ?';
+                $values[] = $am_start_time;
+            }
+            if ($hasAmLateThreshold) {
+                $setParts[] = 'am_late_threshold = ?';
+                $values[] = $am_late_threshold;
+            }
+            if ($hasAmEndTime) {
+                $setParts[] = 'am_end_time = ?';
+                $values[] = $am_end_time;
+            }
+            if ($hasPmStartTime) {
+                $setParts[] = 'pm_start_time = ?';
+                $values[] = $pm_start_time;
+            }
+            if ($hasPmLateThreshold) {
+                $setParts[] = 'pm_late_threshold = ?';
+                $values[] = $pm_late_threshold;
+            }
+            if ($hasPmEndTime) {
+                $setParts[] = 'pm_end_time = ?';
+                $values[] = $pm_end_time;
+            }
+            if ($hasScheduleId) {
+                $setParts[] = 'schedule_id = ?';
+                $values[] = $schedule_id;
+            }
+            if ($hasUsesCustomSchedule) {
+                $setParts[] = 'uses_custom_schedule = ?';
+                $values[] = $uses_custom_schedule;
+            }
+
+            $values[] = $id;
+            $stmt = $pdo->prepare("UPDATE sections SET " . implode(', ', $setParts) . " WHERE id = ?");
+            $stmt->execute($values);
             
             // Update students' section field if section name changed
             if ($old_section['section_name'] !== $section_name) {
@@ -201,6 +318,23 @@ try {
         }
     }
     
+    // Load available attendance schedules (if attendance_schedules table exists)
+    $schedules = [];
+    try {
+        $tblStmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'attendance_schedules'");
+        $tblStmt->execute([$currentDb]);
+        $hasSchedulesTable = (int)$tblStmt->fetchColumn() > 0;
+        if ($hasSchedulesTable) {
+            $sstmt = $pdo->query("SELECT id, schedule_name, grade_level, section_id, morning_start AS morning_start, morning_end AS morning_end, morning_late_after AS morning_late_after, afternoon_start AS afternoon_start, afternoon_end AS afternoon_end, afternoon_late_after AS afternoon_late_after, is_default FROM attendance_schedules WHERE is_active = 1 ORDER BY is_default DESC, schedule_name ASC");
+            if ($sstmt !== false) {
+                $schedules = $sstmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+        }
+    } catch (Exception $e) {
+        error_log('manage_sections: could not load schedules: ' . $e->getMessage());
+        $schedules = [];
+    }
+    
     // Ensure all sections have required keys to prevent undefined array key warnings
     foreach ($sections as &$section) {
         $section['status'] = $section['status'] ?? 'active';
@@ -209,6 +343,15 @@ try {
         $section['school_year'] = $section['school_year'] ?? '';
         $section['grade_level'] = $section['grade_level'] ?? '';
         $section['shift'] = $section['shift'] ?? '';
+        $section['session'] = $section['session'] ?? '';
+        $section['am_start_time'] = $section['am_start_time'] ?? '';
+        $section['am_late_threshold'] = $section['am_late_threshold'] ?? '';
+        $section['am_end_time'] = $section['am_end_time'] ?? '';
+        $section['pm_start_time'] = $section['pm_start_time'] ?? '';
+        $section['pm_late_threshold'] = $section['pm_late_threshold'] ?? '';
+        $section['pm_end_time'] = $section['pm_end_time'] ?? '';
+        $section['schedule_id'] = $section['schedule_id'] ?? null;
+        $section['uses_custom_schedule'] = $section['uses_custom_schedule'] ?? 0;
     }
     unset($section); // Break reference
 } catch (Exception $e) {
@@ -218,6 +361,9 @@ try {
     $teachers = [];
     $hasShiftColumn = false;
 }
+
+// Expose schedules to client-side JS
+echo "<script>window.AVAILABLE_SCHEDULES = " . json_encode($schedules ?? []) . ";</script>\n";
 
 include 'includes/header_modern.php';
 ?>
@@ -755,6 +901,43 @@ include 'includes/header_modern.php';
                             <small class="form-help">Fill in the section details below the shift (AM/PM).</small>
                         </div>
                     </div>
+
+                    <div class="form-grid two-col">
+                        <div class="form-group">
+                            <label for="session" class="form-label">Session</label>
+                            <select name="session" id="session" class="form-select">
+                                <option value="">Default</option>
+                                <option value="morning">AM (Morning)</option>
+                                <option value="afternoon">PM (Afternoon)</option>
+                            </select>
+                            <small class="form-help">Assign default session for this section (AM/PM). Leave blank to use schedule/time-based detection.</small>
+                        </div>
+                        <div class="form-group">
+                            <!-- placeholder for alignment -->
+                        </div>
+                    </div>
+
+                    <div class="form-grid schedule-grid">
+                        <div class="form-group">
+                            <label class="form-label">AM Session</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="time" name="am_start_time" id="am_start_time" class="form-input" placeholder="AM Start">
+                                <input type="time" name="am_late_threshold" id="am_late_threshold" class="form-input" placeholder="Late After">
+                                <input type="time" name="am_end_time" id="am_end_time" class="form-input" placeholder="AM End">
+                            </div>
+                            <small class="form-help">AM start / late threshold / end times</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">PM Session</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="time" name="pm_start_time" id="pm_start_time" class="form-input" placeholder="PM Start">
+                                <input type="time" name="pm_late_threshold" id="pm_late_threshold" class="form-input" placeholder="Late After">
+                                <input type="time" name="pm_end_time" id="pm_end_time" class="form-input" placeholder="PM End">
+                            </div>
+                            <small class="form-help">PM start / late threshold / end times</small>
+                        </div>
+                    </div>
                     
                     <!-- Status is managed separately; removed from this form -->
                     
@@ -906,14 +1089,80 @@ function openAddModal() {
     document.getElementById('formAction').value = 'add';
     document.getElementById('sectionForm').reset();
     document.getElementById('school_year').value = '<?php echo date('Y') . '-' . (date('Y') + 1); ?>';
-    // Status is not editable here
     // Reset adviser and shift selects if present
     const adviserSelect = document.getElementById('adviser');
     if (adviserSelect) adviserSelect.value = '';
     const shiftSelect = document.getElementById('shift');
     if (shiftSelect) shiftSelect.value = '';
+    const sessionEl = document.getElementById('session');
+    if (sessionEl) sessionEl.value = '';
+    const amStart = document.getElementById('am_start_time');
+    if (amStart) amStart.value = '';
+    const amLate = document.getElementById('am_late_threshold');
+    if (amLate) amLate.value = '';
+    const amEnd = document.getElementById('am_end_time');
+    if (amEnd) amEnd.value = '';
+    // Ensure schedule controls exist and set default schedule if available
+    ensureScheduleControls();
+    try {
+        const sel = document.getElementById('schedule_id');
+        if (sel) {
+            const def = (window.AVAILABLE_SCHEDULES || []).find(s => s.is_default == 1);
+            sel.value = def ? def.id : '';
+        }
+        const uses = document.getElementById('uses_custom_schedule');
+        if (uses) uses.checked = false;
+    } catch(e) {}
+    if (pmStart) pmStart.value = '';
+    const pmLate = document.getElementById('pm_late_threshold');
+    if (pmLate) pmLate.value = '';
+    const pmEnd = document.getElementById('pm_end_time');
+    if (pmEnd) pmEnd.value = '';
     
     openModal('sectionModal');
+}
+
+// Inject schedule selector and override toggle into the form when schedules are available
+function ensureScheduleControls() {
+    if (!window.AVAILABLE_SCHEDULES || !Array.isArray(window.AVAILABLE_SCHEDULES) || window.AVAILABLE_SCHEDULES.length === 0) return;
+    const form = document.getElementById('sectionForm');
+    if (!form) return;
+    if (document.getElementById('schedule_select_container')) return; // already added
+
+    const container = document.createElement('div');
+    container.id = 'schedule_select_container';
+    container.className = 'form-row form-row-schedule';
+    const options = ['<option value="">(Use default schedule)</option>'];
+    window.AVAILABLE_SCHEDULES.forEach(s => {
+        const label = s.schedule_name || ('Schedule #' + s.id);
+        options.push(`<option value="${s.id}">${label}</option>`);
+    });
+
+    container.innerHTML = `
+        <label class="form-label">Assigned Schedule</label>
+        <div class="form-row-inline">
+            <select id="schedule_id" name="schedule_id" class="form-select">${options.join('')}</select>
+            <label class="form-checkbox-label" style="margin-left:12px;display:flex;align-items:center;gap:8px;"><input type="checkbox" id="uses_custom_schedule" name="uses_custom_schedule"> Use custom schedule for this section</label>
+        </div>
+        <p class="form-help">Select a predefined schedule from Manage Schedules. Enable custom schedule to override times per-section.</p>
+    `;
+
+    // Insert near top of form
+    const firstRow = form.querySelector('.form-row') || form.firstChild;
+    form.insertBefore(container, firstRow);
+
+    // Toggle handler: when uses_custom_schedule is checked enable time inputs
+    const toggle = document.getElementById('uses_custom_schedule');
+    toggle.addEventListener('change', function() {
+        const enabled = this.checked;
+        ['am_start_time','am_late_threshold','am_end_time','pm_start_time','pm_late_threshold','pm_end_time'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.disabled = !enabled;
+            el.closest('.form-row')?.classList.toggle('muted', !enabled);
+        });
+    });
+
 }
 
 // Edit Section
@@ -942,6 +1191,25 @@ function editSection(section) {
     }
     document.getElementById('school_year').value = section.school_year || '';
     if (document.getElementById('shift')) document.getElementById('shift').value = section.shift || '';
+
+    // set session/schedule values if present
+    try { document.getElementById('session').value = section.session || ''; } catch(e) {}
+    try { document.getElementById('am_start_time').value = section.am_start_time || ''; } catch(e) {}
+    try { document.getElementById('am_late_threshold').value = section.am_late_threshold || ''; } catch(e) {}
+    try { document.getElementById('am_end_time').value = section.am_end_time || ''; } catch(e) {}
+    try { document.getElementById('pm_start_time').value = section.pm_start_time || ''; } catch(e) {}
+    try { document.getElementById('pm_late_threshold').value = section.pm_late_threshold || ''; } catch(e) {}
+    try { document.getElementById('pm_end_time').value = section.pm_end_time || ''; } catch(e) {}
+    // If schedule controls exist, set them
+    try {
+        ensureScheduleControls();
+        const sel = document.getElementById('schedule_id');
+        if (sel) sel.value = section.schedule_id || '';
+        const uses = document.getElementById('uses_custom_schedule');
+        if (uses) uses.checked = !!section.uses_custom_schedule;
+        // Trigger change to enable/disable time inputs
+        if (uses) uses.dispatchEvent(new Event('change'));
+    } catch(e) {}
     
     SectionManager.currentSection = section;
     openModal('sectionModal');
@@ -1234,7 +1502,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Run animations
     setTimeout(animateStats, 100);
-    
+    // Ensure schedule controls are present on load when schedules are available
+    try { ensureScheduleControls(); } catch(e) {}
+
     console.log('✅ Enhanced Sections Management initialized');
 });
 </script>

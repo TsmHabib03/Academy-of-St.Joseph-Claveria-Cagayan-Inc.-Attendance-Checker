@@ -747,6 +747,10 @@
             backdrop-filter: blur(10px);
         }
 
+        .badge-late { background: var(--error) !important; }
+        .badge-on-time { background: var(--success) !important; }
+        .badge-assigned { background: rgba(255,255,255,0.12) !important; color: white !important; }
+
         /* Desktop adjustments */
         @media (min-width: 768px) {
             .scanner-app {
@@ -1128,33 +1132,74 @@
             document.getElementById('scanner-loading').querySelector('p').textContent = 'Processing attendance...';
             
             try {
-                // Extract LRN from QR code data
-                let lrn = qrCode.trim();
-                
-                // If QR contains multiple fields separated by |, take the first one
-                if (lrn.includes('|')) {
-                    lrn = lrn.split('|')[0].trim();
+                // Parse QR payload. Supported formats:
+                // 1) Plain LRN: "12345678901"
+                // 2) Pipe-delimited: "LRN|SECTION" or "LRN|SECTION|SESSION"
+                // 3) JSON: {"lrn":"...","section":"...","session":"morning"}
+                let payload = qrCode.trim();
+                let lrn = '';
+                let providedSection = '';
+                let providedSession = '';
+
+                // Try JSON first
+                if (payload.startsWith('{')) {
+                    try {
+                        const obj = JSON.parse(payload);
+                        lrn = (obj.lrn || obj.LRN || obj.id || obj.code || '').toString().trim();
+                        providedSection = (obj.section || obj.class || obj.section_name || '').toString().trim();
+                        providedSession = (obj.session || obj.assigned_session || obj.shift || '').toString().trim();
+                    } catch (e) {
+                        // fallback to plain parsing
+                        payload = payload;
+                    }
                 }
-                
+
+                // If not parsed as JSON, handle pipe-delimited or plain
+                if (!lrn) {
+                    if (payload.includes('|')) {
+                        const parts = payload.split('|').map(p => p.trim());
+                        lrn = parts[0] || '';
+                        providedSection = parts[1] || '';
+                        providedSession = parts[2] || '';
+                    } else {
+                        lrn = payload;
+                    }
+                }
+
+                // Trim and sanitize
+                lrn = lrn.trim();
+                providedSection = providedSection.trim();
+                providedSession = providedSession.trim().toLowerCase();
+
+                // Build form body
+                const form = new URLSearchParams();
+                form.append('lrn', lrn);
+                if (providedSection) form.append('section', providedSection);
+                if (providedSession) form.append('assigned_session', providedSession);
+
                 // Send to API (no logging of sensitive data)
                 const response = await fetch('api/mark_attendance.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `lrn=${encodeURIComponent(lrn)}`
+                    body: form.toString()
                 });
 
-                // Check if response is OK
+                // Always read raw response text for better debugging
+                const responseText = await response.text();
+
+                // If server returned non-2xx, include server body in the error
                 if (!response.ok) {
-                    throw new Error(`Server error: ${response.status}`);
+                    console.error('Attendance API error', response.status, responseText);
+                    throw new Error(`Server returned ${response.status}: ${responseText}`);
                 }
 
                 // Parse JSON response
-                const responseText = await response.text();
                 let data;
                 try {
                     data = JSON.parse(responseText);
                 } catch (parseError) {
-                    throw new Error('Invalid server response');
+                    console.error('Invalid JSON from server:', responseText);
+                    throw new Error('Invalid server response: ' + (responseText || ''));
                 }
                 
                 // Hide loading
@@ -1197,7 +1242,6 @@
             } else {
                 titleElement.textContent = 'Success! ✓';
             }
-
             // Update displayed name/label; include identifier for teachers
             const displayName = data.student_name || (userType === 'teacher' ? 'Teacher' : 'Student');
             if (userType === 'teacher' && data.identifier) {
@@ -1205,16 +1249,42 @@
             } else {
                 document.getElementById('success-student').textContent = displayName;
             }
-            
+
             // Format time display
-            const timeLabel = data.status === 'time_in' ? 'Time In' : 
+            const timeLabel = data.status === 'time_in' ? 'Time In' :
                              data.status === 'time_out' ? 'Time Out' : 'Time';
             const timeValue = data.time_in || data.time_out || new Date().toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
                 hour12: true
             });
-            
+
+            // Remove any previous meta bar
+            const prevMeta = document.getElementById('success-meta');
+            if (prevMeta) prevMeta.remove();
+
+            // Build session/late/assigned meta
+            const sessionRaw = (data.session || data.assigned_session || '').toString().toLowerCase();
+            let metaHtml = '<div id="success-meta" style="margin:8px 0;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;">';
+            if (sessionRaw) {
+                const sessionText = sessionRaw.includes('afternoon') || sessionRaw.includes('pm')
+                    ? 'PM'
+                    : (sessionRaw.includes('morning') || sessionRaw.includes('am') ? 'AM' : sessionRaw.toUpperCase());
+                const isLate = !!data.late;
+                const badgeClass = isLate ? 'badge-late' : 'badge-on-time';
+                metaHtml += `<span class="status-badge ${badgeClass}">${sessionText}${isLate ? ' • Late' : ''}</span>`;
+            }
+            if (data.assigned_session && data.assigned_session !== data.session) {
+                metaHtml += `<span class="status-badge badge-assigned">Assigned: ${data.assigned_session}</span>`;
+            }
+            if (data.auto_marked_absent) {
+                metaHtml += `<span style="color:#fff;font-size:13px;">Auto-marked absent: ${data.auto_marked_absent}</span>`;
+            }
+            metaHtml += '</div>';
+
+            // Insert meta right after student name
+            document.getElementById('success-student').insertAdjacentHTML('afterend', metaHtml);
+
             document.getElementById('success-time').textContent = `${timeLabel}: ${timeValue}`;
             document.getElementById('success-overlay').classList.add('active');
             
@@ -1245,6 +1315,9 @@
         function closeResultOverlay() {
             document.getElementById('success-overlay').classList.remove('active');
             document.getElementById('error-overlay').classList.remove('active');
+            // Remove injected meta bar if present
+            const meta = document.getElementById('success-meta');
+            if (meta) meta.remove();
             startScanning();
         }
 
@@ -1324,3 +1397,4 @@
     </script>
 </body>
 </html>
+

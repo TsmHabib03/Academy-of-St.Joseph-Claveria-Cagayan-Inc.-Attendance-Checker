@@ -348,7 +348,21 @@ try {
         throw new Exception('QR code data is required');
     }
 
+<<<<<<< HEAD
     // Allow teacher QR payloads prefixed with TEACHER: (e.g. TEACHER:EMP-2026-001)
+=======
+    // Optional: allow scanner to supply section and assigned session directly
+    $provided_section = trim($_POST['section'] ?? $_POST['section_name'] ?? '');
+    $provided_session_raw = trim(strtolower($_POST['assigned_session'] ?? $_POST['session'] ?? ''));
+    $provided_session = '';
+    if ($provided_session_raw !== '') {
+        if (strpos($provided_session_raw, 'pm') !== false || strpos($provided_session_raw, 'afternoon') !== false) $provided_session = 'afternoon';
+        elseif (strpos($provided_session_raw, 'am') !== false || strpos($provided_session_raw, 'morning') !== false) $provided_session = 'morning';
+    }
+    
+    // Determine if this is a student LRN (11-13 digits) or teacher employee_id
+    $isStudent = preg_match('/^[0-9]{11,13}$/', $scannedCode);
+>>>>>>> dev
     $isTeacher = false;
     $user = null;
     $userType = 'student';
@@ -424,6 +438,15 @@ try {
     
     // Set common variables for compatibility
     $student = $user; // Use $student variable for backward compatibility
+    // If scanner provided a section, prefer it over DB value
+    if (!empty($provided_section)) {
+        $student['section'] = $provided_section;
+        $student['class'] = $provided_section;
+    }
+    // If scanner provided an assigned session, set it (will be used later)
+    if (!empty($provided_session)) {
+        $student['session'] = $provided_session;
+    }
     $lrn = $scannedCode;
     
     // Get current date and time
@@ -445,22 +468,96 @@ try {
         $student_section_name = trim($student['section'] ?? $student['class'] ?? '');
         $student_grade = trim($student['class'] ?? '');
 
-        // Lookup applicable schedule: prefer section match, then grade_level, then default
+        // Determine assigned session for the student (prefer explicit student field, fallback to sections table)
+        $assigned_session = null; // 'morning' or 'afternoon'
+        $auto_marked_absent = null; // will hold 'morning' or 'afternoon' when we auto-mark
+        // section value used for inserts when auto-marking absent
+        $section_value = $student['section'] ?? $student['class'] ?? '';
+        $possibleKeys = ['session','shift','am_pm','time_of_day'];
+        foreach ($possibleKeys as $k) {
+            if (!empty($student[$k])) {
+                $v = strtolower(trim($student[$k]));
+                if (strpos($v, 'pm') !== false || strpos($v, 'afternoon') !== false) { $assigned_session = 'afternoon'; break; }
+                if (strpos($v, 'am') !== false || strpos($v, 'morning') !== false) { $assigned_session = 'morning'; break; }
+            }
+        }
+
+        if (!$assigned_session && !empty($student_section_name)) {
+            try {
+                // Use SELECT * to avoid errors if optional columns (like `session`) are missing
+                $sec_sql = "SELECT * FROM sections WHERE section_name = :section_name LIMIT 1";
+                $sec_stmt = $db->prepare($sec_sql);
+                $sec_stmt->bindParam(':section_name', $student_section_name, PDO::PARAM_STR);
+                $sec_stmt->execute();
+                $sec_row = $sec_stmt->fetch(PDO::FETCH_ASSOC);
+                if ($sec_row) {
+                    foreach ($possibleKeys as $k) {
+                        if (!empty($sec_row[$k])) {
+                            $v = strtolower(trim($sec_row[$k]));
+                            if (strpos($v, 'pm') !== false || strpos($v, 'afternoon') !== false) { $assigned_session = 'afternoon'; break; }
+                            if (strpos($v, 'am') !== false || strpos($v, 'morning') !== false) { $assigned_session = 'morning'; break; }
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('Section session lookup failed: '.$e->getMessage());
+            }
+        }
+
+        // Lookup applicable schedule: prefer section-level override, then section.schedule_id, then grade_level, then default
         $schedule = null;
         try {
-            $sched_sql = "SELECT s.* FROM attendance_schedules s LEFT JOIN sections sec ON s.section_id = sec.id
-                          WHERE s.is_active = 1 AND (
-                              (sec.section_name = :section_name AND s.section_id IS NOT NULL)
-                              OR (s.grade_level = :grade_level AND s.grade_level IS NOT NULL)
-                              OR s.is_default = 1
-                          )
-                          ORDER BY (sec.section_name = :section_name) DESC, (s.grade_level = :grade_level) DESC, s.is_default DESC
-                          LIMIT 1";
-            $sched_stmt = $db->prepare($sched_sql);
-            $sched_stmt->bindParam(':section_name', $student_section_name, PDO::PARAM_STR);
-            $sched_stmt->bindParam(':grade_level', $student_grade, PDO::PARAM_STR);
-            $sched_stmt->execute();
-            $schedule = $sched_stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            // Check if sections table supports schedule_id / custom overrides
+            $secColsStmt = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sections' AND COLUMN_NAME IN ('schedule_id','uses_custom_schedule','am_start_time','am_late_threshold','am_end_time','pm_start_time','pm_late_threshold','pm_end_time')");
+            $secColsStmt->execute();
+            $secCols = $secColsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            if (!empty($student_section_name) && in_array('schedule_id', $secCols)) {
+                $secSchedStmt = $db->prepare("SELECT schedule_id, uses_custom_schedule, am_start_time, am_late_threshold, am_end_time, pm_start_time, pm_late_threshold, pm_end_time FROM sections WHERE section_name = :section_name LIMIT 1");
+                $secSchedStmt->bindParam(':section_name', $student_section_name, PDO::PARAM_STR);
+                $secSchedStmt->execute();
+                $secSched = $secSchedStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($secSched) {
+                    // If section uses custom schedule, build schedule from section fields
+                    if (!empty($secSched['uses_custom_schedule'])) {
+                        $schedule = [
+                            'morning_start' => $secSched['am_start_time'] ?: null,
+                            'morning_end' => $secSched['am_end_time'] ?: null,
+                            'morning_late_after' => $secSched['am_late_threshold'] ?: null,
+                            'afternoon_start' => $secSched['pm_start_time'] ?: null,
+                            'afternoon_end' => $secSched['pm_end_time'] ?: null,
+                            'afternoon_late_after' => $secSched['pm_late_threshold'] ?: null
+                        ];
+                    }
+
+                    // If schedule not yet found and schedule_id is present, fetch that schedule directly
+                    if (!$schedule && !empty($secSched['schedule_id'])) {
+                        $byId = $db->prepare("SELECT * FROM attendance_schedules WHERE id = :id AND is_active = 1 LIMIT 1");
+                        $byId->bindParam(':id', $secSched['schedule_id'], PDO::PARAM_INT);
+                        $byId->execute();
+                        $schedRow = $byId->fetch(PDO::FETCH_ASSOC);
+                        if ($schedRow) $schedule = $schedRow;
+                    }
+                }
+            }
+
+            // Fallback: if schedule still not found, perform the legacy lookup by section/grade/default
+            if (!$schedule) {
+                $sched_sql = "SELECT s.* FROM attendance_schedules s LEFT JOIN sections sec ON s.section_id = sec.id
+                              WHERE s.is_active = 1 AND (
+                                  (sec.section_name = :section_name AND s.section_id IS NOT NULL)
+                                  OR (s.grade_level = :grade_level AND s.grade_level IS NOT NULL)
+                                  OR s.is_default = 1
+                              )
+                              ORDER BY (sec.section_name = :section_name) DESC, (s.grade_level = :grade_level) DESC, s.is_default DESC
+                              LIMIT 1";
+                $sched_stmt = $db->prepare($sched_sql);
+                $sched_stmt->bindParam(':section_name', $student_section_name, PDO::PARAM_STR);
+                $sched_stmt->bindParam(':grade_level', $student_grade, PDO::PARAM_STR);
+                $sched_stmt->execute();
+                $schedule = $sched_stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            }
         } catch (Exception $e) {
             // If schedule lookup fails, fallback to null (will use sensible defaults)
             error_log('Schedule lookup failed: ' . $e->getMessage());
@@ -479,6 +576,7 @@ try {
             ];
         }
 
+<<<<<<< HEAD
         // Normalize schedule time fields to H:i:s and provide safe defaults on parse failure
         $scheduleDefaults = [
             'morning_start' => '06:00:00',
@@ -541,6 +639,9 @@ try {
         }
 
         // Determine session (morning|afternoon) based on assigned session (from teacher/section) or current time
+=======
+        // Determine session (morning|afternoon) based on assigned session (if available) or current time and schedule
+>>>>>>> dev
         $t = strtotime($current_time);
         $morning_start = strtotime($schedule['morning_start']);
         $morning_end = strtotime($schedule['morning_end']);
@@ -549,6 +650,7 @@ try {
         $afternoon_end = strtotime($schedule['afternoon_end']);
         $afternoon_late = strtotime($schedule['afternoon_late_after']);
 
+<<<<<<< HEAD
         if ($assignedSession === 'morning') {
             $session = 'morning';
             $preferred_in = 'morning_time_in';
@@ -569,10 +671,83 @@ try {
                 $session = 'afternoon';
                 $preferred_in = 'afternoon_time_in';
                 $preferred_out = 'afternoon_time_out';
+=======
+        $session = null;
+        $in_col = 'morning_time_in';
+        $out_col = 'morning_time_out';
+        $is_late = false;
+
+        // If student has an assigned session, prefer that
+        if ($assigned_session) {
+            $session = $assigned_session;
+            if ($session === 'morning') {
+                $in_col = 'morning_time_in'; $out_col = 'morning_time_out'; $is_late = ($t > $morning_late);
+            } else {
+                $in_col = 'afternoon_time_in'; $out_col = 'afternoon_time_out'; $is_late = ($t > $afternoon_late);
+            }
+
+            // Check if current time falls within the assigned session window
+            $in_window = ($session === 'morning') ? ($t >= $morning_start && $t <= $morning_end) : ($t >= $afternoon_start && $t <= $afternoon_end);
+            if (!$in_window) {
+                // Assigned session was missed. Auto-mark the assigned session as absent (insert/update attendance row with NULL times)
+                $missed_session = $session;
+                $current_session_by_time = ($t >= $morning_start && $t <= $morning_end) ? 'morning' : (($t >= $afternoon_start && $t <= $afternoon_end) ? 'afternoon' : 'none');
+                $auto_marked_absent = null;
+
+                if (!$isTeacher) {
+                    // Lock row for today and upsert absent marker
+                    $lockSql = "SELECT * FROM attendance WHERE lrn = :code AND date = :today FOR UPDATE";
+                    $lockStmt = $db->prepare($lockSql);
+                    $lockStmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+                    $lockStmt->bindParam(':today', $today, PDO::PARAM_STR);
+                    $lockStmt->execute();
+                    $row = $lockStmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($row) {
+                        if ($missed_session === 'morning') {
+                            $upd = "UPDATE attendance SET morning_time_in = NULL, morning_time_out = NULL, is_late_morning = 0 WHERE lrn = :code AND date = :today";
+                        } else {
+                            $upd = "UPDATE attendance SET afternoon_time_in = NULL, afternoon_time_out = NULL, is_late_afternoon = 0 WHERE lrn = :code AND date = :today";
+                        }
+                        $uStmt = $db->prepare($upd);
+                        $uStmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+                        $uStmt->bindParam(':today', $today, PDO::PARAM_STR);
+                        $uStmt->execute();
+                        $auto_marked_absent = $missed_session;
+                    } else {
+                        if ($missed_session === 'morning') {
+                            $ins = "INSERT INTO attendance (lrn, section, date, morning_time_in, morning_time_out, is_late_morning, is_late_afternoon) VALUES (:code, :section, :date, NULL, NULL, 0, 0)";
+                        } else {
+                            $ins = "INSERT INTO attendance (lrn, section, date, afternoon_time_in, afternoon_time_out, is_late_morning, is_late_afternoon) VALUES (:code, :section, :date, NULL, NULL, 0, 0)";
+                        }
+                        $iStmt = $db->prepare($ins);
+                        $iStmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
+                        $iStmt->bindParam(':section', $section_value, PDO::PARAM_STR);
+                        $iStmt->bindParam(':date', $today, PDO::PARAM_STR);
+                        $iStmt->execute();
+                        $auto_marked_absent = $missed_session;
+                    }
+                }
+
+                // Continue processing the current scan (we do not exit). The rest of flow will record the current session if applicable.
+            }
+        } else {
+            // No assigned session, determine by current time
+            if ($t >= $morning_start && $t <= $morning_end) {
+                $session = 'morning';
+                $in_col = 'morning_time_in';
+                $out_col = 'morning_time_out';
+                $is_late = ($t > $morning_late);
+            } elseif ($t >= $afternoon_start && $t <= $afternoon_end) {
+                $session = 'afternoon';
+                $in_col = 'afternoon_time_in';
+                $out_col = 'afternoon_time_out';
+>>>>>>> dev
                 $is_late = ($t > $afternoon_late);
             } else {
                 // Out-of-schedule: default to morning logic
                 $session = 'morning';
+<<<<<<< HEAD
                 $preferred_in = 'morning_time_in';
                 $preferred_out = 'morning_time_out';
                 $is_late = ($t > $morning_late);
@@ -616,6 +791,12 @@ try {
 
         if ($in_col === null || $out_col === null) {
             throw new Exception('Attendance table missing expected time columns. Please run the migration to add morning/afternoon time columns or ensure legacy time_in/time_out exist.');
+=======
+                $in_col = 'morning_time_in';
+                $out_col = 'morning_time_out';
+                $is_late = ($t > $morning_late);
+            }
+>>>>>>> dev
         }
 
         // Use SELECT ... FOR UPDATE to lock the row and prevent race conditions
@@ -631,6 +812,7 @@ try {
         $existing_record = $check_stmt->fetch(PDO::FETCH_ASSOC);
 
         // Normalize section value to store in attendance row (backwards-compatible)
+        // (already initialized earlier for auto-marking but keep here to ensure consistency)
         $section_value = $student['section'] ?? $student['class'] ?? '';
 
         // Helper: prepare email details
@@ -677,6 +859,8 @@ try {
                 'success' => true,
                 'status' => 'time_in',
                 'session' => $session,
+                'assigned_session' => $assigned_session,
+                'auto_marked_absent' => $auto_marked_absent,
                 'late' => $is_late,
                 'message' => $userLabel . ' Time In recorded successfully!',
                 'student_name' => ($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''),
@@ -708,6 +892,7 @@ try {
                 $emailDetails = $prepareEmailDetails(); try { sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails, $userType); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); } try { sendAttendanceSms($db, $student, 'time_in', $emailDetails, $userType); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); }
 
                 ob_end_clean();
+<<<<<<< HEAD
                 echo json_encode([
                     'success' => true,
                     'status' => 'time_in',
@@ -720,6 +905,9 @@ try {
                     'time_in' => date('h:i A', strtotime($current_time)),
                     'date' => date('F j, Y', strtotime($today))
                 ]);
+=======
+                echo json_encode(['success' => true, 'status' => 'time_in', 'session' => $session, 'assigned_session' => $assigned_session, 'auto_marked_absent' => $auto_marked_absent, 'late' => $is_late, 'message' => $userLabel . ' Time In recorded successfully!', 'time_in' => date('h:i A', strtotime($current_time)), 'date' => date('F j, Y', strtotime($today))]);
+>>>>>>> dev
                 exit;
 
             } elseif ($existing_in !== null && ($existing_out === null)) {
@@ -755,6 +943,8 @@ try {
                     'success' => true,
                     'status' => 'time_out',
                     'session' => $session,
+                    'auto_marked_absent' => $auto_marked_absent,
+                    'assigned_session' => $assigned_session,
                     'message' => $userLabel . ' Time Out recorded successfully!',
                     'student_name' => ($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''),
                     'user_type' => $userType,
@@ -784,7 +974,9 @@ try {
     
 } catch (PDOException $e) {
     ob_end_clean();
+    // Log full DB error to server log
     error_log("Attendance DB Error: " . $e->getMessage());
+<<<<<<< HEAD
 
     // Default message for end users
     $userMessage = 'Database error occurred. Please try again.';
@@ -800,6 +992,14 @@ try {
         'success' => false,
         'status' => 'error',
         'message' => $userMessage . $debugSuffix
+=======
+    // Return a slightly more detailed JSON response for local debugging
+    echo json_encode([
+        'success' => false,
+        'status' => 'error',
+        'message' => 'Database error occurred. Please try again.',
+        'db_error' => $e->getMessage()
+>>>>>>> dev
     ]);
 } catch (Exception $e) {
     ob_end_clean();

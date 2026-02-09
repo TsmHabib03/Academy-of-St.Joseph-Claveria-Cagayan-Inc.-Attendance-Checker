@@ -53,41 +53,111 @@ try {
     $sections = [];
 }
 
-// Build query for students
-$query = "
-    SELECT s.*, sec.section_name, sec.grade_level,
-           (SELECT COUNT(*) FROM attendance a WHERE a.student_id = s.student_id 
-            AND MONTH(a.date) = MONTH(CURRENT_DATE) AND YEAR(a.date) = YEAR(CURRENT_DATE)) as monthly_attendance,
-           (SELECT MAX(date) FROM attendance a WHERE a.student_id = s.student_id) as last_attendance
-    FROM students s
-    LEFT JOIN sections sec ON s.section_id = sec.id
-    WHERE 1=1
-";
+// Detect available schema variations (students / attendance columns)
+try {
+    $colStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students'");
+    $colStmt->execute();
+    $studentCols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    $studentCols = [];
+}
+
+try {
+    $colStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance'");
+    $colStmt->execute();
+    $attendanceCols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    $attendanceCols = [];
+}
+
+$hasLrn = in_array('lrn', $studentCols, true);
+$hasStudentId = in_array('student_id', $studentCols, true) || in_array('id', $studentCols, true);
+$attendanceUsesLrn = in_array('lrn', $attendanceCols, true);
+$attendanceUsesStudentId = in_array('student_id', $attendanceCols, true);
+$hasSectionId = in_array('section_id', $studentCols, true);
+$hasSectionName = in_array('section', $studentCols, true);
+
+// Build query for students (schema-aware)
 $params = [];
 
+// Decide which identifier to use when querying attendance
+$attendanceIdField = $attendanceUsesLrn ? 'lrn' : ($attendanceUsesStudentId ? 'student_id' : null);
+$studentIdRef = $hasLrn ? 's.lrn' : ($hasStudentId ? 's.student_id' : 's.id');
+
+// Subqueries for attendance counts and last attendance
+if ($attendanceIdField !== null) {
+    $monthlySub = "(SELECT COUNT(*) FROM attendance a WHERE a.{$attendanceIdField} = {$studentIdRef} AND MONTH(a.date) = MONTH(CURRENT_DATE) AND YEAR(a.date) = YEAR(CURRENT_DATE)) as monthly_attendance";
+    $lastSub = "(SELECT MAX(date) FROM attendance a WHERE a.{$attendanceIdField} = {$studentIdRef}) as last_attendance";
+} else {
+    // Attendance table doesn't have expected id columns; fallback to zero/null
+    $monthlySub = "0 as monthly_attendance";
+    $lastSub = "NULL as last_attendance";
+}
+
+// Build JOIN to sections depending on whether students store section_id or section name
+if ($hasSectionId) {
+    $join = "LEFT JOIN sections sec ON s.section_id = sec.id";
+} elseif ($hasSectionName) {
+    $join = "LEFT JOIN sections sec ON s.section = sec.section_name";
+} else {
+    $join = "LEFT JOIN sections sec ON 1=0"; // no section info available
+}
+
+$query = "SELECT s.*, sec.section_name, sec.grade_level, {$monthlySub}, {$lastSub} FROM students s {$join} WHERE 1=1";
+
+// Grade level filter uses sections table
 if ($filterGradeLevel) {
     $query .= " AND sec.grade_level = ?";
     $params[] = $filterGradeLevel;
 }
 
+// Section filter: if students table has section_id, use it; otherwise resolve id->name
 if ($filterSection) {
-    $query .= " AND s.section_id = ?";
-    $params[] = $filterSection;
+    if ($hasSectionId) {
+        $query .= " AND s.section_id = ?";
+        $params[] = $filterSection;
+    } elseif ($hasSectionName) {
+        // resolve section id to name
+        try {
+            $nameStmt = $pdo->prepare("SELECT section_name FROM sections WHERE id = ? LIMIT 1");
+            $nameStmt->execute([$filterSection]);
+            $secName = $nameStmt->fetchColumn();
+            if ($secName) {
+                $query .= " AND s.section = ?";
+                $params[] = $secName;
+            } else {
+                // no matching section id -> no results
+                $query .= " AND 1=0";
+            }
+        } catch (Exception $e) {
+            $query .= " AND 1=0";
+        }
+    } else {
+        $query .= " AND 1=0";
+    }
 }
 
+// Sex/gender filter
 if ($filterSex) {
-    // Support both old 'gender' and new 'sex' column names
     $query .= " AND (s.sex = ? OR s.gender = ?)";
     $params[] = $filterSex;
     $params[] = $filterSex;
 }
 
+// Search term: match against name and available identifier columns
 if ($searchTerm) {
-    $query .= " AND (s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_id LIKE ?)";
     $searchWildcard = "%{$searchTerm}%";
+    $searchParts = ["s.first_name LIKE ?", "s.last_name LIKE ?"];
     $params[] = $searchWildcard;
     $params[] = $searchWildcard;
-    $params[] = $searchWildcard;
+    if ($hasLrn) {
+        $searchParts[] = "s.lrn LIKE ?";
+        $params[] = $searchWildcard;
+    } elseif ($hasStudentId) {
+        $searchParts[] = "s.student_id LIKE ?";
+        $params[] = $searchWildcard;
+    }
+    $query .= " AND (" . implode(' OR ', $searchParts) . ")";
 }
 
 $query .= " ORDER BY sec.grade_level, sec.section_name, s.last_name, s.first_name";
@@ -165,10 +235,6 @@ include 'includes/header_modern.php';
             </div>
         </div>
         <div class="page-actions-enhanced">
-            <button class="btn-header btn-header-secondary" onclick="toggleFilters()">
-                <i class="fas fa-filter"></i>
-                <span>Filters</span>
-            </button>
             <?php if (hasPermission('student_manage')): ?>
             <a href="manage_students.php" class="btn-header btn-header-primary">
                 <i class="fas fa-user-plus"></i>
@@ -349,29 +415,52 @@ include 'includes/header_modern.php';
                                         echo htmlspecialchars($fullName);
                                         ?>
                                     </h4>
-                                    <p class="student-id"><?php echo htmlspecialchars($student['student_id']); ?></p>
+                                    <?php
+                                    $displayId = $student['lrn'] ?? $student['student_id'] ?? $student['id'] ?? '';
+                                    $monthly = isset($student['monthly_attendance']) ? (int)$student['monthly_attendance'] : 0;
+                                    $lastAtt = $student['last_attendance'] ?? null;
+                                    ?>
+                                    <div class="student-id">ID: <?php echo htmlspecialchars($displayId); ?></div>
                                     <div class="student-meta">
-                                        <?php if ($student['last_attendance']): ?>
+                                        <?php if ($lastAtt): ?>
                                             <span class="last-seen" title="Last Attendance">
                                                 <i class="fas fa-clock"></i>
-                                                <?php echo date('M d', strtotime($student['last_attendance'])); ?>
+                                                <?php echo date('M d', strtotime($lastAtt)); ?>
                                             </span>
                                         <?php endif; ?>
                                         <span class="monthly-attendance" title="This Month's Attendance">
                                             <i class="fas fa-calendar-check"></i>
-                                            <?php echo $student['monthly_attendance'] ?? 0; ?> days
+                                            <?php echo $monthly; ?> days
                                         </span>
                                     </div>
                                 </div>
                                 <div class="student-actions">
+                                    <?php
+                                    // Safe edit link id (prefer numeric id if present)
+                                    $editId = $student['id'] ?? $student['student_id'] ?? '';
+                                    // Determine identifier for details modal
+                                    if ($hasLrn && !empty($student['lrn'])) {
+                                        $idType = 'lrn';
+                                        $idValue = $student['lrn'];
+                                    } elseif (!empty($student['student_id'])) {
+                                        $idType = 'student_id';
+                                        $idValue = $student['student_id'];
+                                    } elseif (!empty($student['id'])) {
+                                        $idType = 'id';
+                                        $idValue = $student['id'];
+                                    } else {
+                                        $idType = 'id';
+                                        $idValue = '';
+                                    }
+                                    $escapedId = htmlspecialchars($idValue, ENT_QUOTES);
+                                    ?>
                                     <?php if (hasPermission('student_manage')): ?>
-                                    <a href="manage_students.php?id=<?php echo $student['id']; ?>" 
+                                    <a href="manage_students.php?id=<?php echo htmlspecialchars($editId); ?>" 
                                        class="btn btn-sm btn-icon" title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     <?php endif; ?>
-                                    <button type="button" class="btn btn-sm btn-icon" 
-                                            onclick="viewStudentDetails(<?php echo $student['id']; ?>)" title="View Details">
+                                    <button class="btn-icon" title="View Details" onclick="viewStudentDetails('<?php echo $escapedId; ?>','<?php echo $idType; ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                 </div>
@@ -404,6 +493,22 @@ include 'includes/header_modern.php';
     margin-bottom: 1.5rem;
 }
 
+.alert.alert-info {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.alert.alert-info .alert-icon {
+    flex: 0 0 auto;
+    margin-top: 0.125rem;
+}
+
+.alert.alert-info .alert-content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .stat-card {
     background: #fff;
     border-radius: 12px;
@@ -412,6 +517,7 @@ include 'includes/header_modern.php';
     align-items: center;
     gap: 1rem;
     box-shadow: var(--shadow-sm);
+    border: 1px solid var(--asj-green-100);
 }
 
 .stat-icon {
@@ -426,8 +532,8 @@ include 'includes/header_modern.php';
 }
 
 .stat-icon.blue { background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-700) 100%); }
-.stat-icon.green { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
-.stat-icon.pink { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.stat-icon.green { background: linear-gradient(135deg, #16a34a 0%, #0f766e 100%); }
+.stat-icon.pink { background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%); }
 .stat-icon.purple { background: linear-gradient(135deg, var(--asj-green-400) 0%, var(--asj-green-600) 100%); }
 
 .stat-info {
@@ -494,6 +600,7 @@ include 'includes/header_modern.php';
     margin-bottom: 1rem;
     box-shadow: var(--shadow-sm);
     overflow: hidden;
+    border: 1px solid var(--asj-green-100);
 }
 
 .section-header {
@@ -566,18 +673,21 @@ include 'includes/header_modern.php';
 }
 
 .student-card {
-    background: #f8f9fa;
+    background: #fff;
     border-radius: 10px;
     padding: 1rem;
     display: flex;
     align-items: center;
     gap: 1rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid var(--asj-green-100);
+    border-left: 4px solid var(--asj-green-500);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .student-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 6px 16px rgba(20, 83, 45, 0.15);
+    border-color: var(--asj-green-300);
 }
 
 .student-avatar {
@@ -588,18 +698,17 @@ include 'includes/header_modern.php';
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
+    background: var(--asj-green-50);
+    border: 1px solid var(--asj-green-200);
+    color: var(--asj-green-700);
 }
 
 .student-avatar .male {
-    background: linear-gradient(135deg, var(--asj-green-500) 0%, var(--asj-green-700) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--asj-green-700);
 }
 
 .student-avatar .female {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #d9468f;
 }
 
 .student-info {
@@ -623,10 +732,22 @@ include 'includes/header_modern.php';
     gap: 0.75rem;
     font-size: 0.75rem;
     color: #888;
+    flex-wrap: wrap;
 }
 
 .student-meta i {
     margin-right: 0.25rem;
+}
+
+.student-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: var(--asj-green-50);
+    color: var(--asj-green-700);
+    border: 1px solid var(--asj-green-100);
 }
 
 .student-actions {
@@ -642,15 +763,15 @@ include 'includes/header_modern.php';
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    background: #fff;
-    border: 1px solid #ddd;
-    color: #666;
+    background: var(--asj-green-50);
+    border: 1px solid var(--asj-green-200);
+    color: var(--asj-green-700);
     transition: all 0.2s ease;
 }
 
 .btn-icon:hover {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
+    background: var(--asj-green-600);
+    border-color: var(--asj-green-600);
     color: #fff;
 }
 
@@ -763,21 +884,29 @@ function toggleSection(sectionId) {
     }
 }
 
-function viewStudentDetails(studentId) {
+function viewStudentDetails(idValue, idType) {
     const modal = document.getElementById('studentModal');
     const content = document.getElementById('studentModalContent');
-    
+
     modal.style.display = 'flex';
     content.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
-    
-    fetch('../api/get_student_details.php?id=' + studentId)
+
+    // build URL based on identifier type (prefer lrn when available)
+    let url = '../api/get_student_details.php';
+    if (idType === 'lrn') {
+        url += '?lrn=' + encodeURIComponent(idValue);
+    } else {
+        url += '?id=' + encodeURIComponent(idValue);
+    }
+
+    fetch(url)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const student = data.student;
                 const sex = student.sex || student.gender || 'N/A';
                 const mobile = student.mobile_number || student.email || 'N/A';
-                
+
                 content.innerHTML = `
                     <h2><i class="fas fa-user-graduate"></i> Student Details</h2>
                     <div class="student-detail-grid">
@@ -785,7 +914,7 @@ function viewStudentDetails(studentId) {
                             <h4>Personal Information</h4>
                             <div class="detail-row">
                                 <span class="detail-label">Student ID:</span>
-                                <span class="detail-value">${student.student_id}</span>
+                                <span class="detail-value">${student.lrn || student.student_id || student.id || 'N/A'}</span>
                             </div>
                             <div class="detail-row">
                                 <span class="detail-label">Full Name:</span>

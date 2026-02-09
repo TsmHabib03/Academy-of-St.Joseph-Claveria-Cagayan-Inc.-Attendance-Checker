@@ -42,6 +42,18 @@ function getDashboardData($pdo) {
         $stmt = $pdo->prepare("SELECT COUNT(DISTINCT COALESCE(employee_number, employee_id)) as present_teachers FROM teacher_attendance WHERE date = CURDATE() AND (morning_time_in IS NOT NULL OR afternoon_time_in IS NOT NULL OR time_in IS NOT NULL)");
         $stmt->execute();
         $data['presentTeachers'] = (int)$stmt->fetchColumn();
+
+        // Total teachers (active if column exists)
+        try {
+            $hasIsActiveStmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'teachers' AND COLUMN_NAME = 'is_active'");
+            $hasIsActiveStmt->execute();
+            $hasIsActive = ((int)$hasIsActiveStmt->fetchColumn()) > 0;
+            $teacherWhere = $hasIsActive ? ' WHERE is_active = 1' : '';
+            $stmt = $pdo->query("SELECT COUNT(*) as total FROM teachers{$teacherWhere}");
+            $data['totalTeachers'] = (int)$stmt->fetch()['total'];
+        } catch (Exception $e) {
+            $data['totalTeachers'] = 0;
+        }
         
         // Absent students today
         $data['absentToday'] = $data['totalStudents'] - $data['presentToday'];
@@ -152,6 +164,8 @@ function getDashboardData($pdo) {
         return [
             'totalStudents' => 0,
             'presentToday' => 0,
+            'presentTeachers' => 0,
+            'totalTeachers' => 0,
             'absentToday' => 0,
             'attendanceRate' => 0,
             'weeklyTrend' => [],
@@ -171,6 +185,7 @@ $dashboardData = getDashboardData($pdo);
 $totalStudents = $dashboardData['totalStudents'];
 $presentToday = $dashboardData['presentToday'];
 $presentTeachers = $dashboardData['presentTeachers'] ?? 0;
+$totalTeachers = $dashboardData['totalTeachers'] ?? 0;
 $absentToday = $dashboardData['absentToday'];
 $attendanceRate = $dashboardData['attendanceRate'];
 $totalRecords = $dashboardData['totalRecords'];
@@ -254,7 +269,7 @@ include 'includes/header_modern.php';
         </div>
         <div id="presentTeachersValue" class="stat-card-value"><?php echo number_format($presentTeachers); ?></div>
         <div class="stat-card-footer">
-            <span><?php echo number_format($presentTeachers); ?> today</span>
+            <span id="presentTeachersFooter"><?php echo number_format($presentTeachers); ?> of <?php echo number_format($totalTeachers); ?> today</span>
         </div>
     </div>
 
@@ -284,6 +299,11 @@ include 'includes/header_modern.php';
             <span>All time attendance</span>
         </div>
     </div>
+</div>
+
+<!-- Live Poll Status -->
+<div style="margin-top:8px;">
+    <small id="liveStatsStatus" style="color:var(--gray-600);">Live stats: idle</small>
 </div>
 
 <!-- Dashboard Grid -->
@@ -834,15 +854,18 @@ include 'includes/header_modern.php';
         const statusEl = document.getElementById('liveStatsStatus');
         try {
             if (statusEl) statusEl.textContent = 'Live stats: fetching...';
+            // Ensure session cookie is sent and provide better diagnostics
             const res = await fetch('../api/get_dashboard_stats.php', { method: 'POST', credentials: 'same-origin' });
             if (!res.ok) {
-                const txt = await res.text().catch(() => null);
-                console.log('Live stats poll: HTTP error', res.status, res.statusText, txt);
+                const text = await res.text().catch(() => null);
+                console.log('Live stats poll: HTTP error', res.status, res.statusText, text);
                 if (statusEl) statusEl.textContent = `Live stats: HTTP ${res.status}`;
                 return;
             }
             let j;
-            try { j = await res.json(); } catch (err) {
+            try {
+                j = await res.json();
+            } catch (err) {
                 const txt = await res.text().catch(() => null);
                 console.log('Live stats poll: invalid JSON', txt);
                 if (statusEl) statusEl.textContent = 'Live stats: invalid JSON';
@@ -855,10 +878,26 @@ include 'includes/header_modern.php';
             }
             const s = j.stats;
             // Update DOM values if present
-            const totalEl = document.getElementById('totalStudentsValue'); if (totalEl) totalEl.textContent = Number(s.total_students).toLocaleString();
-            const presentEl = document.getElementById('presentTodayValue'); if (presentEl) presentEl.textContent = Number(s.present_today).toLocaleString();
-            const absentEl = document.getElementById('absentTodayValue'); if (absentEl) absentEl.textContent = (Number(s.total_students) - Number(s.present_today)).toLocaleString();
-            const recordsEl = document.getElementById('totalRecordsValue'); if (recordsEl && s.total_records !== undefined) recordsEl.textContent = Number(s.total_records).toLocaleString();
+            const totalEl = document.getElementById('totalStudentsValue');
+            if (totalEl) totalEl.textContent = Number(s.total_students).toLocaleString();
+            const presentEl = document.getElementById('presentTodayValue');
+            if (presentEl) presentEl.textContent = Number(s.present_today).toLocaleString();
+            const absentEl = document.getElementById('absentTodayValue');
+            if (absentEl) absentEl.textContent = (Number(s.total_students) - Number(s.present_today)).toLocaleString();
+            const teachersEl = document.getElementById('presentTeachersValue');
+            if (teachersEl && s.present_teachers !== undefined) {
+                teachersEl.textContent = Number(s.present_teachers).toLocaleString();
+            }
+            const teachersFooter = document.getElementById('presentTeachersFooter');
+            if (teachersFooter && s.present_teachers !== undefined) {
+                if (s.total_teachers !== undefined && s.total_teachers !== null) {
+                    teachersFooter.textContent = `${Number(s.present_teachers).toLocaleString()} of ${Number(s.total_teachers).toLocaleString()} today`;
+                } else {
+                    teachersFooter.textContent = `${Number(s.present_teachers).toLocaleString()} today`;
+                }
+            }
+            const recordsEl = document.getElementById('totalRecordsValue');
+            if (recordsEl && s.total_records !== undefined) recordsEl.textContent = Number(s.total_records).toLocaleString();
             // Update attendance rate display in Present Today footer
             const presentFooter = document.querySelector('.stat-card-success .stat-card-footer span');
             if (presentFooter) presentFooter.textContent = ` ${s.attendance_rate}% rate`;

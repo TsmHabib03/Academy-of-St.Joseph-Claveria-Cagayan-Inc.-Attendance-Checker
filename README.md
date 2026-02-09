@@ -1160,3 +1160,18 @@ This attendance management system serves as a comprehensive case study for under
 - Network latency and QR code scanning speed evaluation
 - Cross-browser and cross-device compatibility assessment
 - Security vulnerability testing and penetration analysis
+
+## ✅ Recently Implemented Features
+
+The following features have been implemented in the latest updates to the project (post v3.0):
+
+- **Behavior Monitoring**: Automatic detection of attendance patterns (frequent lateness, consecutive absences, sudden absence warnings) with severity levels and acknowledgment tracking.
+- **Achievement Badges & Leaderboard**: Automatic badge awarding (Perfect Attendance, On-Time Streak, Early Bird, etc.), points system and a leaderboard for recognition.
+- **Teacher Attendance**: Separate attendance tracking for teachers using employee IDs and teacher-specific QR codes.
+- **SMS Notifications (Multi-Gateway)**: Configurable SMS alerts via Semaphore, Twilio, Vonage, or a custom API for late arrival and absence notifications with delivery logging and rate limiting.
+- **AM/PM Session Tracking & Late Detection**: Distinct AM/PM session handling with configurable schedules per section and automatic late flagging.
+- **Manual Attendance Improvements**: Single and bulk entry modes, integrated QR scanner on manual attendance page, and flexible Time In/Time Out actions.
+- **Enhanced Dashboard & Reports**: Real-time statistics, weekly trend charts, section-wise analytics, CSV and PDF export options for reports.
+- **QR Code Utilities**: Regenerate QR code functionality and organized QR code storage in uploads/qrcodes/.
+
+If you'd like, I can also add a short changelog section with version numbers and dates, or extract these into a separate `CHANGELOG.md` file.
