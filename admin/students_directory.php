@@ -820,6 +820,8 @@ include 'includes/header_modern.php';
     max-height: 80vh;
     overflow-y: auto;
     position: relative;
+    border: 1px solid var(--asj-green-100);
+    box-shadow: 0 18px 40px rgba(20, 83, 45, 0.15);
 }
 
 .modal-lg {
@@ -833,17 +835,139 @@ include 'includes/header_modern.php';
     font-size: 28px;
     font-weight: bold;
     cursor: pointer;
-    color: #666;
+    color: var(--asj-green-600);
 }
 
 .close:hover {
-    color: #333;
+    color: var(--asj-green-800);
 }
 
 .loading {
     text-align: center;
     padding: 2rem;
-    color: #666;
+    color: var(--asj-green-700);
+}
+
+#studentModal h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 1rem;
+    color: var(--asj-green-800);
+    font-size: 1.5rem;
+}
+
+#studentModal h2 i {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--asj-green-50);
+    color: var(--asj-green-600);
+    border: 1px solid var(--asj-green-100);
+}
+
+.student-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin-top: 0.75rem;
+}
+
+.detail-section {
+    background: var(--asj-green-50);
+    border: 1px solid var(--asj-green-100);
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+.detail-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem;
+    color: var(--asj-green-800);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.detail-section h4 i {
+    color: var(--asj-green-600);
+}
+
+.detail-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px dashed var(--asj-green-200);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--asj-green-800);
+}
+
+.detail-label i {
+    color: var(--asj-green-600);
+}
+
+.detail-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1f2937;
+    text-align: right;
+}
+
+.qr-section {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 12px;
+    background: var(--asj-green-50);
+    border: 1px dashed var(--asj-green-200);
+    text-align: center;
+}
+
+.qr-section h4 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem;
+    color: var(--asj-green-800);
+}
+
+.qr-section h4 i {
+    color: var(--asj-green-600);
+}
+
+.qr-section img {
+    max-width: 150px;
+    border: 2px solid var(--asj-green-300);
+    border-radius: 10px;
+    padding: 6px;
+    background: #fff;
+}
+
+#studentModal .error {
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    background: var(--asj-green-50);
+    border: 1px solid var(--asj-green-200);
+    color: var(--asj-green-800);
+    font-weight: 600;
+    text-align: center;
 }
 
 @media (max-width: 768px) {
@@ -891,13 +1015,20 @@ function viewStudentDetails(idValue, idType) {
     modal.style.display = 'flex';
     content.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
 
-    // build URL based on identifier type (prefer lrn when available)
-    let url = '../api/get_student_details.php';
-    if (idType === 'lrn') {
-        url += '?lrn=' + encodeURIComponent(idValue);
-    } else {
-        url += '?id=' + encodeURIComponent(idValue);
+    if (!idValue) {
+        content.innerHTML = '<p class="error">Student identifier missing.</p>';
+        return;
     }
+
+    // build URL based on identifier type (prefer lrn when available)
+    const params = new URLSearchParams();
+    if (idType === 'lrn') {
+        params.set('lrn', idValue);
+    } else {
+        params.set('id', idValue);
+    }
+    params.set('id_type', idType);
+    const url = '../api/get_student_details.php?' + params.toString();
 
     fetch(url)
         .then(response => response.json())
@@ -911,40 +1042,40 @@ function viewStudentDetails(idValue, idType) {
                     <h2><i class="fas fa-user-graduate"></i> Student Details</h2>
                     <div class="student-detail-grid">
                         <div class="detail-section">
-                            <h4>Personal Information</h4>
+                            <h4><i class="fas fa-id-card"></i> Personal Information</h4>
                             <div class="detail-row">
-                                <span class="detail-label">Student ID:</span>
+                                <span class="detail-label"><i class="fas fa-hashtag"></i> Student ID:</span>
                                 <span class="detail-value">${student.lrn || student.student_id || student.id || 'N/A'}</span>
                             </div>
                             <div class="detail-row">
-                                <span class="detail-label">Full Name:</span>
+                                <span class="detail-label"><i class="fas fa-user"></i> Full Name:</span>
                                 <span class="detail-value">${student.first_name} ${student.middle_name || ''} ${student.last_name}</span>
                             </div>
                             <div class="detail-row">
-                                <span class="detail-label">Sex:</span>
+                                <span class="detail-label"><i class="fas fa-venus-mars"></i> Sex:</span>
                                 <span class="detail-value">${sex}</span>
                             </div>
                             <div class="detail-row">
-                                <span class="detail-label">Contact:</span>
+                                <span class="detail-label"><i class="fas fa-phone"></i> Contact:</span>
                                 <span class="detail-value">${mobile}</span>
                             </div>
                         </div>
                         <div class="detail-section">
-                            <h4>Academic Information</h4>
+                            <h4><i class="fas fa-book"></i> Academic Information</h4>
                             <div class="detail-row">
-                                <span class="detail-label">Section:</span>
+                                <span class="detail-label"><i class="fas fa-layer-group"></i> Section:</span>
                                 <span class="detail-value">${student.section_name || 'N/A'}</span>
                             </div>
                             <div class="detail-row">
-                                <span class="detail-label">Grade Level:</span>
+                                <span class="detail-label"><i class="fas fa-stream"></i> Grade Level:</span>
                                 <span class="detail-value">${student.grade_level || 'N/A'}</span>
                             </div>
                         </div>
                     </div>
                     ${student.qr_code ? `
                         <div class="qr-section">
-                            <h4>QR Code</h4>
-                            <img src="../${student.qr_code}" alt="QR Code" style="max-width: 150px;">
+                            <h4><i class="fas fa-qrcode"></i> QR Code</h4>
+                            <img src="../${student.qr_code}" alt="QR Code">
                         </div>
                     ` : ''}
                 `;

@@ -16,10 +16,14 @@ include 'includes/header_modern.php';
         /* ASJ Brand Colors */
         --asj-green-50: #E8F5E9;
         --asj-green-100: #C8E6C9;
+        --asj-green-200: #A5D6A7;
+        --asj-green-300: #81C784;
         --asj-green-400: #66BB6A;
         --asj-green-500: #4CAF50;
         --asj-green-600: #43A047;
         --asj-green-700: #388E3C;
+        --asj-green-800: #2E7D32;
+        --asj-green-900: #1B5E20;
         
         --asj-gold-50: #FFF9E6;
         --asj-gold-400: #FFD54F;
@@ -38,21 +42,21 @@ include 'includes/header_modern.php';
         --neutral-900: #1F2937;
         
         /* Semantic Colors */
-        --success-light: #D1FAE5;
-        --success: #10B981;
-        --success-dark: #059669;
+        --success-light: var(--asj-green-50);
+        --success: var(--asj-green-500);
+        --success-dark: var(--asj-green-700);
         
         --error-light: #FEE2E2;
         --error: #EF4444;
         --error-dark: #DC2626;
         
-        --warning-light: #FEF3C7;
-        --warning: #F59E0B;
-        --warning-dark: #D97706;
+        --warning-light: var(--asj-green-100);
+        --warning: var(--asj-green-400);
+        --warning-dark: var(--asj-green-600);
         
-        --info-light: #DBEAFE;
-        --info: #3B82F6;
-        --info-dark: #2563EB;
+        --info-light: var(--asj-green-100);
+        --info: var(--asj-green-600);
+        --info-dark: var(--asj-green-800);
     }
 
     /* ===== PAGE HEADER ENHANCED ===== */
@@ -935,7 +939,7 @@ include 'includes/header_modern.php';
             <button id="printReport" class="btn btn-secondary btn-sm">
                 <i class="fas fa-print"></i> Print
             </button>
-            <button id="exportPDF" class="btn btn-danger btn-sm">
+            <button id="exportPDF" class="btn btn-primary btn-sm">
                 <i class="fas fa-file-pdf"></i> Export PDF
             </button>
             <button id="exportCSV" class="btn btn-success btn-sm">

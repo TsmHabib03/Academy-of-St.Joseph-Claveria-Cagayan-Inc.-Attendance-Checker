@@ -10,6 +10,7 @@
 require_once 'config.php';
 require_once __DIR__ . '/../includes/auth_middleware.php';
 require_once __DIR__ . '/../includes/behavior_analyzer.php';
+require_once __DIR__ . '/../includes/email_notifications.php';
 
 // Allow admin and teacher roles
 requireRole([ROLE_ADMIN, ROLE_TEACHER]);
@@ -29,8 +30,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acknowledge_alert']))
     $notes = trim($_POST['notes'] ?? '');
     
     try {
-        $analyzer->acknowledgeAlert($alertId, $currentAdmin['id'], $notes);
-        $successMessage = "Alert acknowledged successfully.";
+        $acknowledged = $analyzer->acknowledgeAlert($alertId, $currentAdmin['id'], $notes);
+        if (!$acknowledged) {
+            throw new Exception('Failed to acknowledge alert.');
+        }
+
+        $emailConfig = require __DIR__ . '/../config/email_config.php';
+        $emailSent = sendBehaviorAcknowledgementEmail($pdo, $alertId, $currentAdmin, $notes, $emailConfig);
+
+        if ($emailSent) {
+            $successMessage = "Alert acknowledged successfully. Email notification sent.";
+        } else {
+            $successMessage = "Alert acknowledged successfully. Email notification could not be sent.";
+        }
     } catch (Exception $e) {
         $errorMessage = "Error acknowledging alert: " . $e->getMessage();
     }

@@ -364,17 +364,17 @@ try {
     $isTeacher = false;
     $user = null;
     $userType = 'student';
+    $teacherCodeRaw = '';
 
     if (stripos($scannedCode, 'TEACHER:') === 0) {
-        // Teacher QR payload (uses Employee Number - 7 digits)
-        $employeeNumber = substr($scannedCode, 8);
+        $teacherCodeRaw = trim(substr($scannedCode, 8));
         $isTeacher = true;
         $userType = 'teacher';
-        $scannedCode = $employeeNumber; // normalize for further queries
+        $scannedCode = $teacherCodeRaw; // normalize for further queries
     }
 
     // Determine if this is a student LRN (11-13 digits)
-    $isStudent = preg_match('/^[0-9]{11,13}$/', $scannedCode);
+    $isStudent = (!$isTeacher) && preg_match('/^[0-9]{11,13}$/', $scannedCode);
     
     if ($isStudent) {
         // Get student details
@@ -400,31 +400,65 @@ try {
         $colCheck->execute();
         $teacherCols = $colCheck->fetchAll(PDO::FETCH_COLUMN);
 
-        $hasEmpNum = in_array('employee_number', $teacherCols);
-        $hasEmpId = in_array('employee_id', $teacherCols);
+        $hasEmpNum = in_array('employee_number', $teacherCols, true);
+        $hasEmpId = in_array('employee_id', $teacherCols, true);
 
-        if ($hasEmpNum && $hasEmpId) {
-            $teacher_query = "SELECT * FROM teachers WHERE employee_number = :code OR employee_id = :code LIMIT 1";
-        } elseif ($hasEmpNum) {
-            $teacher_query = "SELECT * FROM teachers WHERE employee_number = :code LIMIT 1";
-        } elseif ($hasEmpId) {
-            $teacher_query = "SELECT * FROM teachers WHERE employee_id = :code LIMIT 1";
-        } else {
-            // No identifier columns found on teachers table
-            $teacher_query = null;
+        $teacherCode = trim((string)$scannedCode);
+        $teacherCodesToTry = [];
+        if ($teacherCode !== '') {
+            $teacherCodesToTry[] = $teacherCode;
+        }
+
+        $teacherIdCandidate = null;
+        if (preg_match('/^ID(\d+)$/i', $teacherCode, $m)) {
+            $teacherCodesToTry[] = $m[1];
+            $teacherIdCandidate = $m[1];
+        }
+        if (preg_match('/^EMP-?(\d+)$/i', $teacherCode, $m)) {
+            $digits = ltrim($m[1], '0');
+            $digits = ($digits === '') ? '0' : $digits;
+            $teacherCodesToTry[] = $digits;
+            $teacherCodesToTry[] = 'EMP-' . str_pad($m[1], 6, '0', STR_PAD_LEFT);
+            if ($teacherIdCandidate === null) {
+                $teacherIdCandidate = $digits;
+            }
+        }
+        if (ctype_digit($teacherCode)) {
+            $teacherCodesToTry[] = 'EMP-' . str_pad($teacherCode, 6, '0', STR_PAD_LEFT);
+            if ($teacherIdCandidate === null) {
+                $teacherIdCandidate = ltrim($teacherCode, '0');
+                $teacherIdCandidate = ($teacherIdCandidate === '') ? '0' : $teacherIdCandidate;
+            }
+        }
+
+        $teacherCodesToTry = array_values(array_unique(array_filter($teacherCodesToTry, 'strlen')));
+
+        $teacher_query = null;
+        if ($hasEmpNum || $hasEmpId || $teacherIdCandidate !== null) {
+            $clauses = [];
+            if ($hasEmpNum) { $clauses[] = "employee_number = :code"; }
+            if ($hasEmpId) { $clauses[] = "employee_id = :code"; }
+            if ($teacherIdCandidate !== null) { $clauses[] = "id = :tid"; }
+            $teacher_query = "SELECT * FROM teachers WHERE " . implode(' OR ', $clauses) . " LIMIT 1";
         }
 
         if ($teacher_query) {
-            $teacher_stmt = $db->prepare($teacher_query);
-            $teacher_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
-            $teacher_stmt->execute();
+            foreach ($teacherCodesToTry as $codeCandidate) {
+                $teacher_stmt = $db->prepare($teacher_query);
+                $teacher_stmt->bindParam(':code', $codeCandidate, PDO::PARAM_STR);
+                if ($teacherIdCandidate !== null) {
+                    $teacher_stmt->bindParam(':tid', $teacherIdCandidate, PDO::PARAM_INT);
+                }
+                $teacher_stmt->execute();
 
-            if ($teacher_stmt->rowCount() > 0) {
-                $user = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
-                $user['lrn'] = $scannedCode; // Use employee_number/employee_id as identifier (backwards compatible)
-                $user['class'] = $user['department'] ?? 'Faculty';
-                $isTeacher = true;
-                $userType = 'teacher';
+                if ($teacher_stmt->rowCount() > 0) {
+                    $user = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
+                    $user['lrn'] = $codeCandidate; // Use teacher identifier for backward compatibility
+                    $user['class'] = $user['department'] ?? 'Faculty';
+                    $isTeacher = true;
+                    $userType = 'teacher';
+                    break;
+                }
             }
         }
     }
@@ -573,8 +607,6 @@ try {
                 'afternoon_late_after' => '13:30:00'
             ];
         }
-
-<<<<<<< HEAD
         // Normalize schedule time fields to H:i:s and provide safe defaults on parse failure
         $scheduleDefaults = [
             'morning_start' => '06:00:00',
@@ -607,39 +639,36 @@ try {
             }
         }
 
-        // Determine assigned session (AM/PM) from teacher.shift or sections.shift when available
-        $assignedSession = null; // 'morning' or 'afternoon' or null
-        try {
-            if ($isTeacher) {
-                if (!empty($user['shift'])) {
+        // If assigned session not set, attempt to infer from teacher/section shift (legacy fallback)
+        if (!$assigned_session) {
+            try {
+                if ($isTeacher && !empty($user['shift'])) {
                     $s = strtolower(trim($user['shift']));
-                    if (strpos($s, 'am') !== false) { $assignedSession = 'morning'; }
-                    elseif (strpos($s, 'pm') !== false) { $assignedSession = 'afternoon'; }
+                    if (strpos($s, 'am') !== false) { $assigned_session = 'morning'; }
+                    elseif (strpos($s, 'pm') !== false) { $assigned_session = 'afternoon'; }
                 }
-            } else {
-                // If sections table has a 'shift' column, prefer it
-                $secCol = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sections' AND COLUMN_NAME = 'shift'");
-                $secCol->execute();
-                if ($secCol->fetchColumn()) {
-                    $secStmt = $db->prepare("SELECT shift FROM sections WHERE section_name = :section LIMIT 1");
-                    $secStmt->bindParam(':section', $student_section_name, PDO::PARAM_STR);
-                    $secStmt->execute();
-                    $shiftVal = $secStmt->fetchColumn();
-                    if ($shiftVal !== false && $shiftVal !== null) {
-                        $sv = strtolower(trim($shiftVal));
-                        if (strpos($sv, 'am') !== false) { $assignedSession = 'morning'; }
-                        elseif (strpos($sv, 'pm') !== false) { $assignedSession = 'afternoon'; }
+
+                if (!$assigned_session) {
+                    $secCol = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sections' AND COLUMN_NAME = 'shift'");
+                    $secCol->execute();
+                    if ($secCol->fetchColumn()) {
+                        $secStmt = $db->prepare("SELECT shift FROM sections WHERE section_name = :section LIMIT 1");
+                        $secStmt->bindParam(':section', $student_section_name, PDO::PARAM_STR);
+                        $secStmt->execute();
+                        $shiftVal = $secStmt->fetchColumn();
+                        if ($shiftVal !== false && $shiftVal !== null) {
+                            $sv = strtolower(trim($shiftVal));
+                            if (strpos($sv, 'am') !== false) { $assigned_session = 'morning'; }
+                            elseif (strpos($sv, 'pm') !== false) { $assigned_session = 'afternoon'; }
+                        }
                     }
                 }
+            } catch (Exception $e) {
+                error_log('Session assignment check failed: ' . $e->getMessage());
             }
-        } catch (Exception $e) {
-            error_log('Session assignment check failed: ' . $e->getMessage());
         }
 
-        // Determine session (morning|afternoon) based on assigned session (from teacher/section) or current time
-=======
         // Determine session (morning|afternoon) based on assigned session (if available) or current time and schedule
->>>>>>> dev
         $t = strtotime($current_time);
         $morning_start = strtotime($schedule['morning_start']);
         $morning_end = strtotime($schedule['morning_end']);
@@ -648,40 +677,22 @@ try {
         $afternoon_end = strtotime($schedule['afternoon_end']);
         $afternoon_late = strtotime($schedule['afternoon_late_after']);
 
-<<<<<<< HEAD
-        if ($assignedSession === 'morning') {
-            $session = 'morning';
-            $preferred_in = 'morning_time_in';
-            $preferred_out = 'morning_time_out';
-            $is_late = ($t > $morning_late);
-        } elseif ($assignedSession === 'afternoon') {
-            $session = 'afternoon';
-            $preferred_in = 'afternoon_time_in';
-            $preferred_out = 'afternoon_time_out';
-            $is_late = ($t > $afternoon_late);
-        } else {
-            if ($t >= $morning_start && $t <= $morning_end) {
-                $session = 'morning';
-                $preferred_in = 'morning_time_in';
-                $preferred_out = 'morning_time_out';
-                $is_late = ($t > $morning_late);
-            } elseif ($t >= $afternoon_start && $t <= $afternoon_end) {
-                $session = 'afternoon';
-                $preferred_in = 'afternoon_time_in';
-                $preferred_out = 'afternoon_time_out';
-=======
         $session = null;
-        $in_col = 'morning_time_in';
-        $out_col = 'morning_time_out';
+        $preferred_in = 'morning_time_in';
+        $preferred_out = 'morning_time_out';
         $is_late = false;
 
         // If student has an assigned session, prefer that
         if ($assigned_session) {
             $session = $assigned_session;
             if ($session === 'morning') {
-                $in_col = 'morning_time_in'; $out_col = 'morning_time_out'; $is_late = ($t > $morning_late);
+                $preferred_in = 'morning_time_in';
+                $preferred_out = 'morning_time_out';
+                $is_late = ($t > $morning_late);
             } else {
-                $in_col = 'afternoon_time_in'; $out_col = 'afternoon_time_out'; $is_late = ($t > $afternoon_late);
+                $preferred_in = 'afternoon_time_in';
+                $preferred_out = 'afternoon_time_out';
+                $is_late = ($t > $afternoon_late);
             }
 
             // Check if current time falls within the assigned session window
@@ -689,8 +700,6 @@ try {
             if (!$in_window) {
                 // Assigned session was missed. Auto-mark the assigned session as absent (insert/update attendance row with NULL times)
                 $missed_session = $session;
-                $current_session_by_time = ($t >= $morning_start && $t <= $morning_end) ? 'morning' : (($t >= $afternoon_start && $t <= $afternoon_end) ? 'afternoon' : 'none');
-                $auto_marked_absent = null;
 
                 if (!$isTeacher) {
                     // Lock row for today and upsert absent marker
@@ -726,26 +735,22 @@ try {
                         $auto_marked_absent = $missed_session;
                     }
                 }
-
-                // Continue processing the current scan (we do not exit). The rest of flow will record the current session if applicable.
             }
         } else {
             // No assigned session, determine by current time
             if ($t >= $morning_start && $t <= $morning_end) {
                 $session = 'morning';
-                $in_col = 'morning_time_in';
-                $out_col = 'morning_time_out';
+                $preferred_in = 'morning_time_in';
+                $preferred_out = 'morning_time_out';
                 $is_late = ($t > $morning_late);
             } elseif ($t >= $afternoon_start && $t <= $afternoon_end) {
                 $session = 'afternoon';
-                $in_col = 'afternoon_time_in';
-                $out_col = 'afternoon_time_out';
->>>>>>> dev
+                $preferred_in = 'afternoon_time_in';
+                $preferred_out = 'afternoon_time_out';
                 $is_late = ($t > $afternoon_late);
             } else {
                 // Out-of-schedule: default to morning logic
                 $session = 'morning';
-<<<<<<< HEAD
                 $preferred_in = 'morning_time_in';
                 $preferred_out = 'morning_time_out';
                 $is_late = ($t > $morning_late);
@@ -758,17 +763,27 @@ try {
         $attendanceCols = $colCheckStmt->fetchAll(PDO::FETCH_COLUMN);
 
         // If teacher and attendance table has employee_number column, prefer it
-        if ($isTeacher && in_array('employee_number', $attendanceCols)) {
+        if ($isTeacher && in_array('employee_number', $attendanceCols, true)) {
             $idColumn = 'employee_number';
+        }
+
+        // Normalize scanned code to the identifier used by the attendance table
+        if ($isTeacher) {
+            if ($idColumn === 'employee_number' && !empty($user['employee_number'])) {
+                $scannedCode = (string)$user['employee_number'];
+            } elseif ($idColumn === 'employee_id' && !empty($user['employee_id'])) {
+                $scannedCode = (string)$user['employee_id'];
+            }
+            $student['lrn'] = $scannedCode;
         }
 
         $in_col = null;
         $out_col = null;
 
         // Prefer the session-specific columns, fallback to legacy names
-        if (in_array($preferred_in, $attendanceCols)) {
+        if (in_array($preferred_in, $attendanceCols, true)) {
             $in_col = $preferred_in;
-        } elseif (in_array('time_in', $attendanceCols)) {
+        } elseif (in_array('time_in', $attendanceCols, true)) {
             $in_col = 'time_in';
         } else {
             // Look for any column that ends with '_time_in' as a fallback
@@ -777,9 +792,9 @@ try {
             }
         }
 
-        if (in_array($preferred_out, $attendanceCols)) {
+        if (in_array($preferred_out, $attendanceCols, true)) {
             $out_col = $preferred_out;
-        } elseif (in_array('time_out', $attendanceCols)) {
+        } elseif (in_array('time_out', $attendanceCols, true)) {
             $out_col = 'time_out';
         } else {
             foreach ($attendanceCols as $ac) {
@@ -789,12 +804,6 @@ try {
 
         if ($in_col === null || $out_col === null) {
             throw new Exception('Attendance table missing expected time columns. Please run the migration to add morning/afternoon time columns or ensure legacy time_in/time_out exist.');
-=======
-                $in_col = 'morning_time_in';
-                $out_col = 'morning_time_out';
-                $is_late = ($t > $morning_late);
-            }
->>>>>>> dev
         }
 
         // Use SELECT ... FOR UPDATE to lock the row and prevent race conditions
@@ -827,16 +836,18 @@ try {
             $status = $is_late ? 'late' : 'present';
 
             if ($isTeacher) {
-                $insert_query = "INSERT INTO teacher_attendance (employee_number, department, date, {$in_col}, status) 
-                                VALUES (:code, :section, :date, :time_in, :status)";
+                $insert_query = "INSERT INTO {$attendanceTable} ({$idColumn}, date, {$in_col}, status) 
+                                VALUES (:code, :date, :time_in, :status)";
             } else {
-                $insert_query = "INSERT INTO attendance (lrn, section, date, {$in_col}, status) 
+                $insert_query = "INSERT INTO {$attendanceTable} ({$idColumn}, section, date, {$in_col}, status) 
                                 VALUES (:code, :section, :date, :time_in, :status)";
             }
 
             $insert_stmt = $db->prepare($insert_query);
             $insert_stmt->bindParam(':code', $scannedCode, PDO::PARAM_STR);
-            $insert_stmt->bindParam(':section', $section_value, PDO::PARAM_STR);
+            if (!$isTeacher) {
+                $insert_stmt->bindParam(':section', $section_value, PDO::PARAM_STR);
+            }
             $insert_stmt->bindParam(':date', $today, PDO::PARAM_STR);
             $insert_stmt->bindParam(':time_in', $current_time, PDO::PARAM_STR);
             $insert_stmt->bindParam(':status', $status, PDO::PARAM_STR);
@@ -863,6 +874,7 @@ try {
                 'message' => $userLabel . ' Time In recorded successfully!',
                 'student_name' => ($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''),
                 'user_type' => $userType,
+                'identifier' => $scannedCode,
                 'time_in' => date('h:i A', strtotime($current_time)),
                 'date' => date('F j, Y', strtotime($today))
             ]);
@@ -890,11 +902,12 @@ try {
                 $emailDetails = $prepareEmailDetails(); try { sendAttendanceEmail($emailConfig, $student, 'time_in', $emailDetails, $userType); } catch (Exception $e) { error_log('Email failed: '.$e->getMessage()); } try { sendAttendanceSms($db, $student, 'time_in', $emailDetails, $userType); } catch (Exception $e) { error_log('SMS failed: '.$e->getMessage()); }
 
                 ob_end_clean();
-<<<<<<< HEAD
                 echo json_encode([
                     'success' => true,
                     'status' => 'time_in',
                     'session' => $session,
+                    'assigned_session' => $assigned_session,
+                    'auto_marked_absent' => $auto_marked_absent,
                     'late' => $is_late,
                     'message' => $userLabel . ' Time In recorded successfully!',
                     'student_name' => ($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''),
@@ -903,9 +916,6 @@ try {
                     'time_in' => date('h:i A', strtotime($current_time)),
                     'date' => date('F j, Y', strtotime($today))
                 ]);
-=======
-                echo json_encode(['success' => true, 'status' => 'time_in', 'session' => $session, 'assigned_session' => $assigned_session, 'auto_marked_absent' => $auto_marked_absent, 'late' => $is_late, 'message' => $userLabel . ' Time In recorded successfully!', 'time_in' => date('h:i A', strtotime($current_time)), 'date' => date('F j, Y', strtotime($today))]);
->>>>>>> dev
                 exit;
 
             } elseif ($existing_in !== null && ($existing_out === null)) {
@@ -974,15 +984,13 @@ try {
     ob_end_clean();
     // Log full DB error to server log
     error_log("Attendance DB Error: " . $e->getMessage());
-<<<<<<< HEAD
-
     // Default message for end users
     $userMessage = 'Database error occurred. Please try again.';
 
     // Expose debug details only when explicitly requested from localhost
     $debugSuffix = '';
     $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
-    if ((isset($_POST['debug']) && $_POST['debug'] == '1') && in_array($remoteAddr, ['127.0.0.1', '::1'])) {
+    if ((isset($_POST['debug']) && $_POST['debug'] == '1') && in_array($remoteAddr, ['127.0.0.1', '::1'], true)) {
         $debugSuffix = ' Debug: ' . $e->getMessage();
     }
 
@@ -990,14 +998,6 @@ try {
         'success' => false,
         'status' => 'error',
         'message' => $userMessage . $debugSuffix
-=======
-    // Return a slightly more detailed JSON response for local debugging
-    echo json_encode([
-        'success' => false,
-        'status' => 'error',
-        'message' => 'Database error occurred. Please try again.',
-        'db_error' => $e->getMessage()
->>>>>>> dev
     ]);
 } catch (Exception $e) {
     ob_end_clean();
