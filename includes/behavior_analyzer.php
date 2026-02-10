@@ -19,10 +19,47 @@ class BehaviorAnalyzer
     {
         $this->pdo = $pdo;
 
+        $this->ensureBehaviorAlertsTable();
         $this->monitoringEnabled = $this->getSettingBool('behavior_monitoring_enabled', true);
         $this->lateThresholdWeekly = $this->getSettingInt('late_threshold_weekly', 3);
         $this->absenceThresholdConsecutive = $this->getSettingInt('absence_threshold_consecutive', 2);
         $this->attendanceDropThreshold = $this->getSettingInt('attendance_drop_threshold', 30);
+    }
+
+    private function ensureBehaviorAlertsTable(): void
+    {
+        if ($this->tableExists('behavior_alerts')) {
+            return;
+        }
+
+        try {
+            $sql = "
+                CREATE TABLE IF NOT EXISTS behavior_alerts (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_type VARCHAR(20) NOT NULL DEFAULT 'student',
+                    user_id VARCHAR(20) NOT NULL,
+                    alert_type VARCHAR(50) NOT NULL,
+                    alert_message TEXT NOT NULL,
+                    occurrences INT NOT NULL DEFAULT 0,
+                    date_detected DATE NOT NULL,
+                    severity VARCHAR(20) NOT NULL DEFAULT 'warning',
+                    is_acknowledged TINYINT(1) NOT NULL DEFAULT 0,
+                    acknowledged_by INT NULL,
+                    acknowledged_at DATETIME NULL,
+                    notes TEXT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_user (user_type, user_id),
+                    INDEX idx_alert_type (alert_type),
+                    INDEX idx_ack (is_acknowledged),
+                    INDEX idx_detected (date_detected)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ";
+            $this->pdo->exec($sql);
+            $this->tableCache['behavior_alerts'] = true;
+        } catch (Exception $e) {
+            error_log("Failed to ensure behavior_alerts table: " . $e->getMessage());
+            $this->tableCache['behavior_alerts'] = false;
+        }
     }
 
     public function analyze($userId, string $userType = 'student'): array
@@ -163,8 +200,8 @@ class BehaviorAnalyzer
         $stmt->execute([$userId]);
         $lateCount = (int)($stmt->fetch(PDO::FETCH_ASSOC)['late_count'] ?? 0);
 
-        if ($lateCount >= $this->lateThresholdWeekly && !$this->alertExistsThisWeek($userType, $userId, 'frequent_late')) {
-            return $this->createAlert($userType, $userId, 'frequent_late', "Arrived late {$lateCount} times in the past week", $lateCount, 'warning');
+        if ($lateCount >= $this->lateThresholdWeekly && !$this->alertExistsThisWeek($userType, $userId, 'frequent_lateness')) {
+            return $this->createAlert($userType, $userId, 'frequent_lateness', "Arrived late {$lateCount} times in the past week", $lateCount, 'warning');
         }
 
         return null;
@@ -195,9 +232,9 @@ class BehaviorAnalyzer
         $today = new DateTime();
         $missed = $this->countSchoolDays($lastDate, $today);
 
-        if ($missed >= $this->absenceThresholdConsecutive && !$this->alertExistsThisWeek($userType, $userId, 'consecutive_absence')) {
+        if ($missed >= $this->absenceThresholdConsecutive && !$this->alertExistsThisWeek($userType, $userId, 'consecutive_absences')) {
             $severity = $missed >= 5 ? 'critical' : 'warning';
-            return $this->createAlert($userType, $userId, 'consecutive_absence', "Absent for {$missed} consecutive school days", $missed, $severity);
+            return $this->createAlert($userType, $userId, 'consecutive_absences', "Absent for {$missed} consecutive school days", $missed, $severity);
         }
 
         return null;
@@ -411,24 +448,63 @@ class BehaviorAnalyzer
     public function getStatistics(): array
     {
         if (!$this->tableExists('behavior_alerts')) {
-            return ['total' => 0, 'unacknowledged' => 0, 'critical' => 0, 'warning' => 0, 'today' => 0];
+            return [
+                'total' => 0,
+                'unacknowledged' => 0,
+                'critical' => 0,
+                'warning' => 0,
+                'today' => 0,
+                'pending_alerts' => 0,
+                'frequent_lateness' => 0,
+                'consecutive_absences' => 0,
+                'acknowledged_this_month' => 0
+            ];
         }
 
         try {
+            $hasAckAt = $this->columnExists('behavior_alerts', 'acknowledged_at');
+            $ackExpr = $hasAckAt
+                ? "SUM(CASE WHEN is_acknowledged = 1 AND acknowledged_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN 1 ELSE 0 END)"
+                : "0";
+
             $stmt = $this->pdo->query("
                 SELECT 
                     COUNT(*) as total,
                     SUM(CASE WHEN is_acknowledged = 0 THEN 1 ELSE 0 END) as unacknowledged,
                     SUM(CASE WHEN severity = 'critical' AND is_acknowledged = 0 THEN 1 ELSE 0 END) as critical,
                     SUM(CASE WHEN severity = 'warning' AND is_acknowledged = 0 THEN 1 ELSE 0 END) as warning,
-                    SUM(CASE WHEN date_detected = CURDATE() THEN 1 ELSE 0 END) as today
+                    SUM(CASE WHEN date_detected = CURDATE() THEN 1 ELSE 0 END) as today,
+                    SUM(CASE WHEN is_acknowledged = 0 THEN 1 ELSE 0 END) as pending_alerts,
+                    SUM(CASE WHEN is_acknowledged = 0 AND alert_type = 'frequent_lateness' THEN 1 ELSE 0 END) as frequent_lateness,
+                    SUM(CASE WHEN is_acknowledged = 0 AND alert_type = 'consecutive_absences' THEN 1 ELSE 0 END) as consecutive_absences,
+                    {$ackExpr} as acknowledged_this_month
                 FROM behavior_alerts
             ");
 
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?? ['total' => 0, 'unacknowledged' => 0, 'critical' => 0, 'warning' => 0, 'today' => 0];
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?? [
+                'total' => 0,
+                'unacknowledged' => 0,
+                'critical' => 0,
+                'warning' => 0,
+                'today' => 0,
+                'pending_alerts' => 0,
+                'frequent_lateness' => 0,
+                'consecutive_absences' => 0,
+                'acknowledged_this_month' => 0
+            ];
         } catch (Exception $e) {
             error_log("Failed to get alert statistics: " . $e->getMessage());
-            return ['total' => 0, 'unacknowledged' => 0, 'critical' => 0, 'warning' => 0, 'today' => 0];
+            return [
+                'total' => 0,
+                'unacknowledged' => 0,
+                'critical' => 0,
+                'warning' => 0,
+                'today' => 0,
+                'pending_alerts' => 0,
+                'frequent_lateness' => 0,
+                'consecutive_absences' => 0,
+                'acknowledged_this_month' => 0
+            ];
         }
     }
 

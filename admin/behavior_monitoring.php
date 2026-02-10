@@ -41,53 +41,129 @@ $filterStatus = $_GET['status'] ?? 'pending';
 $filterType = $_GET['type'] ?? '';
 $filterSection = $_GET['section'] ?? '';
 
+// Detect schema variants
+$hasBehaviorAlerts = tableExists($pdo, 'behavior_alerts');
+$hasStudents = tableExists($pdo, 'students');
+$hasSections = tableExists($pdo, 'sections');
+$hasStudentSectionId = $hasStudents && columnExists($pdo, 'students', 'section_id');
+$hasStudentSectionName = $hasStudents && columnExists($pdo, 'students', 'section');
+$hasSectionsGrade = $hasSections && columnExists($pdo, 'sections', 'grade_level');
+
 // Fetch sections for filter
 try {
-    $sectionsStmt = $pdo->query("SELECT id, section_name, grade_level FROM sections ORDER BY grade_level, section_name");
-    $sections = $sectionsStmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($hasSections) {
+        $sectionsSql = "SELECT id, section_name";
+        if ($hasSectionsGrade) {
+            $sectionsSql .= ", grade_level";
+        } else {
+            $sectionsSql .= ", '' as grade_level";
+        }
+        $sectionsSql .= " FROM sections ORDER BY ";
+        if ($hasSectionsGrade) {
+            $sectionsSql .= "grade_level, ";
+        }
+        $sectionsSql .= "section_name";
+        $sectionsStmt = $pdo->query($sectionsSql);
+        $sections = $sectionsStmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $sections = [];
+    }
 } catch (Exception $e) {
     $sections = [];
 }
 
 // Build alerts query
-$alertsQuery = "
-    SELECT ba.*, 
-           s.first_name, s.last_name, s.student_id as sid,
-           sec.section_name, sec.grade_level,
-           au.username as acknowledged_by_name
-    FROM behavior_alerts ba
-    LEFT JOIN students s ON ba.student_id = s.id
-    LEFT JOIN sections sec ON s.section_id = sec.id
-    LEFT JOIN admin_users au ON ba.acknowledged_by = au.id
-    WHERE 1=1
-";
+$alerts = [];
 $params = [];
+$alertsQuery = '';
 
-if ($filterStatus === 'pending') {
-    $alertsQuery .= " AND ba.is_acknowledged = 0";
-} elseif ($filterStatus === 'acknowledged') {
-    $alertsQuery .= " AND ba.is_acknowledged = 1";
+if ($hasBehaviorAlerts) {
+    $studentJoin = '';
+    $studentJoinConditions = [];
+    if ($hasStudents && columnExists($pdo, 'students', 'lrn')) {
+        $studentJoinConditions[] = "ba.user_id = s.lrn";
+    }
+    if ($hasStudents && columnExists($pdo, 'students', 'id')) {
+        $studentJoinConditions[] = "ba.user_id = s.id";
+    }
+    if (!empty($studentJoinConditions)) {
+        $studentJoin = "LEFT JOIN students s ON ba.user_type = 'student' AND (" . implode(' OR ', $studentJoinConditions) . ")";
+    }
+
+    $sectionJoin = '';
+    if ($hasSections && $hasStudents) {
+        if ($hasStudentSectionId) {
+            $sectionJoin = "LEFT JOIN sections sec ON s.section_id = sec.id";
+        } elseif ($hasStudentSectionName) {
+            $sectionJoin = "LEFT JOIN sections sec ON s.section = sec.section_name";
+        }
+    }
+
+    $firstNameExpr = ($hasStudents && columnExists($pdo, 'students', 'first_name')) ? 's.first_name' : "''";
+    $lastNameExpr = ($hasStudents && columnExists($pdo, 'students', 'last_name')) ? 's.last_name' : "''";
+    $studentIdExpr = 'ba.user_id';
+    if ($hasStudents && columnExists($pdo, 'students', 'lrn')) {
+        $studentIdExpr = 'COALESCE(s.lrn, ba.user_id)';
+    } elseif ($hasStudents && columnExists($pdo, 'students', 'id')) {
+        $studentIdExpr = 'COALESCE(s.id, ba.user_id)';
+    }
+
+    $sectionNameExpr = 'NULL';
+    if ($hasStudentSectionId) {
+        $sectionNameExpr = 'sec.section_name';
+    } elseif ($hasStudentSectionName) {
+        $sectionNameExpr = $hasSections ? 'COALESCE(sec.section_name, s.section)' : 's.section';
+    }
+    $gradeLevelExpr = ($hasSections && $hasSectionsGrade) ? 'sec.grade_level' : 'NULL';
+
+    $alertsQuery = "
+        SELECT ba.*, 
+               {$firstNameExpr} as first_name,
+               {$lastNameExpr} as last_name,
+               {$studentIdExpr} as sid,
+               {$sectionNameExpr} as section_name,
+               {$gradeLevelExpr} as grade_level,
+               au.username as acknowledged_by_name
+        FROM behavior_alerts ba
+        {$studentJoin}
+        {$sectionJoin}
+        LEFT JOIN admin_users au ON ba.acknowledged_by = au.id
+        WHERE 1=1
+    ";
 }
 
-if ($filterType) {
-    $alertsQuery .= " AND ba.alert_type = ?";
-    $params[] = $filterType;
-}
+if ($alertsQuery) {
+    if ($filterStatus === 'pending') {
+        $alertsQuery .= " AND ba.is_acknowledged = 0";
+    } elseif ($filterStatus === 'acknowledged') {
+        $alertsQuery .= " AND ba.is_acknowledged = 1";
+    }
 
-if ($filterSection) {
-    $alertsQuery .= " AND s.section_id = ?";
-    $params[] = $filterSection;
-}
+    if ($filterType) {
+        $alertsQuery .= " AND ba.alert_type = ?";
+        $params[] = $filterType;
+    }
 
-$alertsQuery .= " ORDER BY ba.created_at DESC LIMIT 100";
+    if ($filterSection && $hasStudents) {
+        if ($hasStudentSectionId) {
+            $alertsQuery .= " AND s.section_id = ?";
+            $params[] = $filterSection;
+        } elseif ($hasStudentSectionName) {
+            $alertsQuery .= " AND s.section = ?";
+            $params[] = $filterSection;
+        }
+    }
 
-try {
-    $stmt = $pdo->prepare($alertsQuery);
-    $stmt->execute($params);
-    $alerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    $alerts = [];
-    error_log("Fetch alerts error: " . $e->getMessage());
+    $alertsQuery .= " ORDER BY ba.created_at DESC LIMIT 100";
+
+    try {
+        $stmt = $pdo->prepare($alertsQuery);
+        $stmt->execute($params);
+        $alerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $alerts = [];
+        error_log("Fetch alerts error: " . $e->getMessage());
+    }
 }
 
 // Get statistics
@@ -127,7 +203,9 @@ function getSeverityClass($severity) {
         'low' => 'success',
         'medium' => 'warning',
         'high' => 'danger',
-        'critical' => 'danger'
+        'critical' => 'danger',
+        'warning' => 'warning',
+        'info' => 'info'
     ];
     return $classes[$severity] ?? 'secondary';
 }
@@ -280,8 +358,15 @@ include 'includes/header_modern.php';
                 <select id="section" name="section">
                     <option value="">All Sections</option>
                     <?php foreach ($sections as $sec): ?>
-                        <option value="<?php echo $sec['id']; ?>" <?php echo $filterSection == $sec['id'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($sec['section_name'] . ' (' . $sec['grade_level'] . ')'); ?>
+                        <?php
+                            $sectionValue = $hasStudentSectionId ? $sec['id'] : $sec['section_name'];
+                            $sectionLabel = $sec['section_name'];
+                            if (!empty($sec['grade_level'])) {
+                                $sectionLabel .= ' (' . $sec['grade_level'] . ')';
+                            }
+                        ?>
+                        <option value="<?php echo htmlspecialchars($sectionValue); ?>" <?php echo $filterSection == $sectionValue ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($sectionLabel); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -316,6 +401,12 @@ include 'includes/header_modern.php';
                 <?php foreach ($alerts as $alert): 
                     $typeInfo = getAlertTypeInfo($alert['alert_type']);
                     $severityClass = getSeverityClass($alert['severity']);
+                    $studentName = trim(($alert['first_name'] ?? '') . ' ' . ($alert['last_name'] ?? ''));
+                    if ($studentName === '') {
+                        $studentName = 'Unknown Student';
+                    }
+                    $studentIdDisplay = $alert['sid'] ?? $alert['user_id'] ?? 'N/A';
+                    $sectionDisplay = $alert['section_name'] ?? 'N/A';
                 ?>
                     <div class="alert-item <?php echo $alert['is_acknowledged'] ? 'acknowledged' : ''; ?>">
                         <div class="alert-icon <?php echo $typeInfo['color']; ?>">
@@ -324,7 +415,7 @@ include 'includes/header_modern.php';
                         
                         <div class="alert-content">
                             <div class="alert-header">
-                                <h4><?php echo htmlspecialchars($alert['first_name'] . ' ' . $alert['last_name']); ?></h4>
+                                <h4><?php echo htmlspecialchars($studentName); ?></h4>
                                 <div class="alert-badges">
                                     <span class="badge badge-<?php echo $typeInfo['color']; ?>">
                                         <?php echo $typeInfo['label']; ?>
@@ -336,12 +427,12 @@ include 'includes/header_modern.php';
                             </div>
                             
                             <div class="alert-meta">
-                                <span><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($alert['sid']); ?></span>
-                                <span><i class="fas fa-chalkboard"></i> <?php echo htmlspecialchars($alert['section_name'] ?? 'N/A'); ?></span>
+                                <span><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($studentIdDisplay); ?></span>
+                                <span><i class="fas fa-chalkboard"></i> <?php echo htmlspecialchars($sectionDisplay); ?></span>
                                 <span><i class="fas fa-calendar"></i> <?php echo date('M d, Y g:i A', strtotime($alert['created_at'])); ?></span>
                             </div>
                             
-                            <p class="alert-description"><?php echo htmlspecialchars($alert['description']); ?></p>
+                            <p class="alert-description"><?php echo htmlspecialchars($alert['alert_message'] ?? ''); ?></p>
                             
                             <?php if ($alert['is_acknowledged']): ?>
                                 <div class="alert-resolved">
@@ -358,10 +449,10 @@ include 'includes/header_modern.php';
                         <?php if (!$alert['is_acknowledged']): ?>
                             <div class="alert-actions">
                                 <button type="button" class="btn btn-success btn-sm" 
-                                        onclick="showAcknowledgeModal(<?php echo $alert['id']; ?>, '<?php echo addslashes($alert['first_name'] . ' ' . $alert['last_name']); ?>')">
+                                        onclick="showAcknowledgeModal(<?php echo $alert['id']; ?>, '<?php echo addslashes($studentName); ?>')">
                                     <i class="fas fa-check"></i> Acknowledge
                                 </button>
-                                <a href="students_directory.php?search=<?php echo urlencode($alert['sid']); ?>" 
+                                <a href="students_directory.php?search=<?php echo urlencode($studentIdDisplay); ?>" 
                                    class="btn btn-info btn-sm">
                                     <i class="fas fa-user"></i> View Student
                                 </a>

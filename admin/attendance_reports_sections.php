@@ -935,6 +935,9 @@ include 'includes/header_modern.php';
             <button id="printReport" class="btn btn-secondary btn-sm">
                 <i class="fas fa-print"></i> Print
             </button>
+            <button id="exportPDF" class="btn btn-danger btn-sm">
+                <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
             <button id="exportCSV" class="btn btn-success btn-sm">
                 <i class="fas fa-file-csv"></i> Export CSV
             </button>
@@ -1008,6 +1011,11 @@ document.addEventListener('DOMContentLoaded', function() {
         exportToCSV();
     });
 
+    // Export PDF handler
+    document.getElementById('exportPDF').addEventListener('click', function() {
+        exportToPDF();
+    });
+
     // Print report handler
     document.getElementById('printReport').addEventListener('click', function() {
         window.print();
@@ -1031,12 +1039,20 @@ async function generateReport() {
         showLoading('Generating report...');
         
         const response = await fetch('../api/get_attendance_report_sections.php?' + params.toString());
-        
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
+        const raw = await response.text();
+        let data = null;
+        try {
+            data = JSON.parse(raw);
+        } catch (parseError) {
+            data = null;
         }
-        
-        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error((data && data.message) ? data.message : (raw || 'Network response was not ok'));
+        }
+        if (!data) {
+            throw new Error('Invalid server response');
+        }
         hideLoading();
 
         if (data.success) {
@@ -1059,7 +1075,8 @@ async function generateReport() {
     } catch (error) {
         hideLoading();
         console.error('Report generation error:', error);
-        showNotification('Error fetching report data. Please try again.', 'error');
+        const message = (error && error.message) ? error.message : 'Error fetching report data. Please try again.';
+        showNotification(message, 'error');
     }
 }
 
@@ -1234,6 +1251,19 @@ function exportToCSV() {
     window.location.href = '../api/export_attendance_sections_csv.php?' + params.toString();
     
     showNotification('Exporting report to CSV...', 'info');
+}
+
+// Export to PDF
+function exportToPDF() {
+    if (allRecords.length === 0) {
+        showNotification('No data to export', 'warning');
+        return;
+    }
+
+    const params = new URLSearchParams(currentFilters);
+    window.location.href = '../api/export_attendance_sections_pdf.php?' + params.toString();
+
+    showNotification('Exporting report to PDF...', 'info');
 }
 
 // Reset Filters

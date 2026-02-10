@@ -15,6 +15,51 @@ require_once '../includes/database.php';
 try {
     $database = new Database();
     $db = $database->getConnection();
+
+    $timeInParts = [];
+    if (columnExists($db, 'attendance', 'morning_time_in')) {
+        $timeInParts[] = 'a.morning_time_in';
+    }
+    if (columnExists($db, 'attendance', 'afternoon_time_in')) {
+        $timeInParts[] = 'a.afternoon_time_in';
+    }
+    if (columnExists($db, 'attendance', 'time_in')) {
+        $timeInParts[] = 'a.time_in';
+    }
+    if (count($timeInParts) === 0) {
+        $timeInParts[] = 'NULL';
+    }
+    $timeInExpr = count($timeInParts) > 1 ? 'COALESCE(' . implode(', ', $timeInParts) . ')' : $timeInParts[0];
+
+    $timeOutParts = [];
+    if (columnExists($db, 'attendance', 'morning_time_out')) {
+        $timeOutParts[] = 'a.morning_time_out';
+    }
+    if (columnExists($db, 'attendance', 'afternoon_time_out')) {
+        $timeOutParts[] = 'a.afternoon_time_out';
+    }
+    if (columnExists($db, 'attendance', 'time_out')) {
+        $timeOutParts[] = 'a.time_out';
+    }
+    if (count($timeOutParts) === 0) {
+        $timeOutParts[] = 'NULL';
+    }
+    $timeOutExpr = count($timeOutParts) > 1 ? 'COALESCE(' . implode(', ', $timeOutParts) . ')' : $timeOutParts[0];
+
+    $gradeColumn = null;
+    if (columnExists($db, 'students', 'grade_level')) {
+        $gradeColumn = 'grade_level';
+    } elseif (columnExists($db, 'students', 'class')) {
+        $gradeColumn = 'class';
+    }
+    $gradeField = $gradeColumn ? ('s.`' . $gradeColumn . '`') : null;
+
+    $hasMiddleName = columnExists($db, 'students', 'middle_name');
+    $hasParentEmail = columnExists($db, 'students', 'email');
+    $studentNameExpr = $hasMiddleName
+        ? "CONCAT(s.first_name, ' ', IFNULL(CONCAT(s.middle_name, ' '), ''), s.last_name)"
+        : "CONCAT(s.first_name, ' ', s.last_name)";
+    $parentEmailExpr = $hasParentEmail ? 's.email' : 'NULL';
     
     // Get filter parameters
     $section = $_GET['section'] ?? '';
@@ -41,18 +86,23 @@ try {
     
     // Build query
         // Prefer V3 columns (morning/afternoon) with fallback to legacy `time_in`/`time_out`.
-        $query = "SELECT 
+    $query = "SELECT 
                                 a.lrn,
-                                CONCAT(s.first_name, ' ', IFNULL(CONCAT(s.middle_name, ' '), ''), s.last_name) as student_name,
+                                {$studentNameExpr} as student_name,
                                 a.section,
                                 a.date,
-                                COALESCE(a.morning_time_in, a.afternoon_time_in, a.time_in) AS resolved_time_in,
-                                COALESCE(a.morning_time_out, a.afternoon_time_out, a.time_out) AS resolved_time_out,
+                                {$timeInExpr} AS resolved_time_in,
+                                {$timeOutExpr} AS resolved_time_out,
                                 a.status,
-                                s.email as parent_email
+                                {$parentEmailExpr} as parent_email
                             FROM attendance a
                             INNER JOIN students s ON a.lrn = s.lrn
                             WHERE a.date BETWEEN :start_date AND :end_date";
+
+    if ($gradeField) {
+        $query .= " AND {$gradeField} NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6')
+                    AND {$gradeField} NOT LIKE 'Kinder%'";
+    }
     
     $params = [
         ':start_date' => $start_date,
@@ -142,7 +192,7 @@ try {
             $minutes = floor(($duration_seconds % 3600) / 60);
             $duration = sprintf('%d hrs %d mins', $hours, $minutes);
             $completed_count++;
-        } elseif ($row['time_in']) {
+        } elseif ($row['resolved_time_in']) {
             $duration = 'In Progress';
             $incomplete_count++;
         }

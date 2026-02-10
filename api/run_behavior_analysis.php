@@ -13,9 +13,9 @@ require_once __DIR__ . '/../config/db_config.php';
 require_once __DIR__ . '/../includes/behavior_analyzer.php';
 require_once __DIR__ . '/../includes/auth_middleware.php';
 
-// Start session and require admin role
+// Start session and require admin/teacher role
 session_start();
-requireRole([ROLE_ADMIN]);
+requireRole([ROLE_ADMIN, ROLE_TEACHER]);
 
 try {
     $startTime = microtime(true);

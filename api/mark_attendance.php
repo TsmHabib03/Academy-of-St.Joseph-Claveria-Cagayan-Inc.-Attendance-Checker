@@ -348,21 +348,19 @@ try {
         throw new Exception('QR code data is required');
     }
 
-<<<<<<< HEAD
-    // Allow teacher QR payloads prefixed with TEACHER: (e.g. TEACHER:EMP-2026-001)
-=======
     // Optional: allow scanner to supply section and assigned session directly
     $provided_section = trim($_POST['section'] ?? $_POST['section_name'] ?? '');
     $provided_session_raw = trim(strtolower($_POST['assigned_session'] ?? $_POST['session'] ?? ''));
     $provided_session = '';
     if ($provided_session_raw !== '') {
-        if (strpos($provided_session_raw, 'pm') !== false || strpos($provided_session_raw, 'afternoon') !== false) $provided_session = 'afternoon';
-        elseif (strpos($provided_session_raw, 'am') !== false || strpos($provided_session_raw, 'morning') !== false) $provided_session = 'morning';
+        if (strpos($provided_session_raw, 'pm') !== false || strpos($provided_session_raw, 'afternoon') !== false) {
+            $provided_session = 'afternoon';
+        } elseif (strpos($provided_session_raw, 'am') !== false || strpos($provided_session_raw, 'morning') !== false) {
+            $provided_session = 'morning';
+        }
     }
-    
-    // Determine if this is a student LRN (11-13 digits) or teacher employee_id
-    $isStudent = preg_match('/^[0-9]{11,13}$/', $scannedCode);
->>>>>>> dev
+
+    // Allow teacher QR payloads prefixed with TEACHER: (e.g. TEACHER:EMP-2026-001)
     $isTeacher = false;
     $user = null;
     $userType = 'student';

@@ -23,6 +23,50 @@ $additionalCSS = ['../css/manual-attendance-modern.css?v=' . time()];
 // Initialize badge evaluator
 $badgeEvaluator = new BadgeEvaluator($pdo);
 
+// Schema helpers
+$hasBadgesTable = tableExists($pdo, 'badges');
+$hasUserBadgesTable = tableExists($pdo, 'user_badges');
+$hasBadgeApplicableRoles = $hasBadgesTable && columnExists($pdo, 'badges', 'applicable_roles');
+$hasBadgeActive = $hasBadgesTable && columnExists($pdo, 'badges', 'is_active');
+$hasUserBadgesDateEarned = $hasUserBadgesTable && columnExists($pdo, 'user_badges', 'date_earned');
+$hasUserBadgesPeriodStart = $hasUserBadgesTable && columnExists($pdo, 'user_badges', 'period_start');
+$hasUserBadgesPeriodEnd = $hasUserBadgesTable && columnExists($pdo, 'user_badges', 'period_end');
+$hasUserBadgesAwardedAt = $hasUserBadgesTable && columnExists($pdo, 'user_badges', 'awarded_at');
+$hasUserBadgesCreatedAt = $hasUserBadgesTable && columnExists($pdo, 'user_badges', 'created_at');
+
+$studentIdColumn = null;
+if (tableExists($pdo, 'students')) {
+    if (columnExists($pdo, 'students', 'lrn')) {
+        $studentIdColumn = 'lrn';
+    } elseif (columnExists($pdo, 'students', 'student_id')) {
+        $studentIdColumn = 'student_id';
+    } elseif (columnExists($pdo, 'students', 'id')) {
+        $studentIdColumn = 'id';
+    }
+}
+
+function badge_period_dates(string $period): array {
+    $today = new DateTime();
+    switch ($period) {
+        case 'daily':
+            return [$today->format('Y-m-d'), $today->format('Y-m-d')];
+        case 'weekly':
+            $start = clone $today;
+            $start->modify('monday this week');
+            return [$start->format('Y-m-d'), $today->format('Y-m-d')];
+        case 'monthly':
+            $start = clone $today;
+            $start->modify('first day of this month');
+            return [$start->format('Y-m-d'), $today->format('Y-m-d')];
+        case 'yearly':
+            $start = clone $today;
+            $start->modify('first day of January this year');
+            return [$start->format('Y-m-d'), $today->format('Y-m-d')];
+        default:
+            return [$today->format('Y-m-d'), $today->format('Y-m-d')];
+    }
+}
+
 // Handle form submissions
 $message = '';
 $messageType = '';
@@ -45,11 +89,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $messageType = "error";
         } else {
             try {
-                $stmt = $pdo->prepare("
-                    INSERT INTO badges (badge_name, badge_description, badge_icon, badge_color, criteria_type, criteria_value, criteria_period, points, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                ");
-                $stmt->execute([$name, $description, $icon, $color, $badgeType, $criteriaValue, $criteriaPeriod, $points]);
+                $columns = [
+                    'badge_name',
+                    'badge_description',
+                    'badge_icon',
+                    'badge_color',
+                    'criteria_type',
+                    'criteria_value',
+                    'criteria_period',
+                    'points'
+                ];
+                $placeholders = array_fill(0, count($columns), '?');
+                $params = [$name, $description, $icon, $color, $badgeType, $criteriaValue, $criteriaPeriod, $points];
+
+                if ($hasBadgeApplicableRoles) {
+                    $columns[] = 'applicable_roles';
+                    $placeholders[] = '?';
+                    $params[] = 'student,teacher';
+                }
+                if ($hasBadgeActive) {
+                    $columns[] = 'is_active';
+                    $placeholders[] = '?';
+                    $params[] = 1;
+                }
+                if (columnExists($pdo, 'badges', 'created_at')) {
+                    $columns[] = 'created_at';
+                    $placeholders[] = 'NOW()';
+                }
+
+                $sql = "INSERT INTO badges (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
                 
                 logAdminActivity('ADD_BADGE', "Added badge: {$name}");
                 
@@ -73,13 +143,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         
         try {
-            $stmt = $pdo->prepare("
-                UPDATE badges 
-                SET badge_name = ?, badge_description = ?, badge_icon = ?, badge_color = ?, 
-                    criteria_type = ?, criteria_value = ?, criteria_period = ?, points = ?, is_active = ?
-                WHERE id = ?
-            ");
-            $stmt->execute([$name, $description, $icon, $color, $badgeType, $criteriaValue, $criteriaPeriod, $points, $isActive, $badgeId]);
+            $setParts = [
+                'badge_name = ?',
+                'badge_description = ?',
+                'badge_icon = ?',
+                'badge_color = ?',
+                'criteria_type = ?',
+                'criteria_value = ?',
+                'criteria_period = ?',
+                'points = ?'
+            ];
+            $params = [$name, $description, $icon, $color, $badgeType, $criteriaValue, $criteriaPeriod, $points];
+
+            if ($hasBadgeApplicableRoles) {
+                $setParts[] = 'applicable_roles = ?';
+                $params[] = 'student,teacher';
+            }
+            if ($hasBadgeActive) {
+                $setParts[] = 'is_active = ?';
+                $params[] = $isActive;
+            }
+
+            $params[] = $badgeId;
+            $sql = "UPDATE badges SET " . implode(', ', $setParts) . " WHERE id = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
             
             logAdminActivity('EDIT_BADGE', "Updated badge: {$name}");
             
@@ -114,16 +202,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'award_badge') {
         $badgeId = intval($_POST['badge_id']);
-        $userId = intval($_POST['user_id']);
+        $userId = trim($_POST['user_id'] ?? '');
         $userType = $_POST['user_type'] ?? 'student';
         
         try {
-            $stmt = $pdo->prepare("
-                INSERT INTO user_badges (user_id, user_type, badge_id, awarded_at)
-                VALUES (?, ?, ?, NOW())
-                ON DUPLICATE KEY UPDATE awarded_at = NOW()
-            ");
-            $stmt->execute([$userId, $userType, $badgeId]);
+            if (!$hasUserBadgesTable) {
+                throw new Exception('User badges table is missing. Please refresh the page and try again.');
+            }
+            if ($userId === '') {
+                throw new Exception('Please select a user to award the badge.');
+            }
+
+            $criteriaPeriod = 'monthly';
+            if ($hasBadgesTable && columnExists($pdo, 'badges', 'criteria_period')) {
+                $pstmt = $pdo->prepare("SELECT criteria_period FROM badges WHERE id = ? LIMIT 1");
+                $pstmt->execute([$badgeId]);
+                $criteriaPeriod = $pstmt->fetchColumn() ?: 'monthly';
+            }
+            [$periodStart, $periodEnd] = badge_period_dates($criteriaPeriod);
+
+            $today = date('Y-m-d');
+            $now = date('Y-m-d H:i:s');
+            $columns = ['user_id', 'user_type', 'badge_id'];
+            $placeholders = ['?', '?', '?'];
+            $params = [$userId, $userType, $badgeId];
+
+            if ($hasUserBadgesDateEarned) {
+                $columns[] = 'date_earned';
+                $placeholders[] = '?';
+                $params[] = $today;
+            }
+            if ($hasUserBadgesPeriodStart) {
+                $columns[] = 'period_start';
+                $placeholders[] = '?';
+                $params[] = $periodStart;
+            }
+            if ($hasUserBadgesPeriodEnd) {
+                $columns[] = 'period_end';
+                $placeholders[] = '?';
+                $params[] = $periodEnd;
+            }
+            if ($hasUserBadgesAwardedAt) {
+                $columns[] = 'awarded_at';
+                $placeholders[] = '?';
+                $params[] = $now;
+            }
+            if ($hasUserBadgesCreatedAt) {
+                $columns[] = 'created_at';
+                $placeholders[] = '?';
+                $params[] = $now;
+            }
+
+            $sql = "INSERT INTO user_badges (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
+            $updates = [];
+            if ($hasUserBadgesDateEarned) {
+                $updates[] = "date_earned = VALUES(date_earned)";
+            }
+            if ($hasUserBadgesPeriodStart) {
+                $updates[] = "period_start = VALUES(period_start)";
+            }
+            if ($hasUserBadgesPeriodEnd) {
+                $updates[] = "period_end = VALUES(period_end)";
+            }
+            if ($hasUserBadgesAwardedAt) {
+                $updates[] = "awarded_at = VALUES(awarded_at)";
+            }
+            if ($hasUserBadgesCreatedAt) {
+                $updates[] = "created_at = VALUES(created_at)";
+            }
+            if (!empty($updates)) {
+                $sql .= " ON DUPLICATE KEY UPDATE " . implode(', ', $updates);
+            }
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
             
             logAdminActivity('AWARD_BADGE', "Awarded badge ID {$badgeId} to {$userType} ID {$userId}");
             
@@ -136,7 +288,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'evaluate_badges') {
         try {
             $result = $badgeEvaluator->evaluateAll();
-            $message = "Evaluated badges for {$result['evaluated']} users. {$result['awarded']} new badges awarded.";
+            $evaluated = $result['evaluated'] ?? 0;
+            $awarded = $result['awarded'] ?? 0;
+            $message = "Evaluated badges for {$evaluated} users. {$awarded} new badges awarded.";
             $messageType = "success";
             
             logAdminActivity('EVALUATE_BADGES', $message);
@@ -149,31 +303,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Fetch all badges
 try {
-    $badgesStmt = $pdo->query("
+    $badgeIsActiveField = $hasBadgeActive ? 'b.is_active' : '1';
+    $badgeCreatedAtField = columnExists($pdo, 'badges', 'created_at') ? 'b.created_at' : 'b.id';
+    $badgesSql = "
         SELECT b.id, b.badge_name as name, b.badge_description as description, 
                b.badge_icon as icon, b.badge_color as color, b.criteria_type as badge_type,
-               b.criteria_value, b.criteria_period, b.points, b.is_active, b.created_at,
+               b.criteria_value, b.criteria_period, b.points, {$badgeIsActiveField} as is_active, {$badgeCreatedAtField} as created_at,
                (SELECT COUNT(*) FROM user_badges ub WHERE ub.badge_id = b.id) as times_awarded
         FROM badges b
-        ORDER BY b.created_at DESC
-    ");
+        ORDER BY {$badgeCreatedAtField} DESC
+    ";
+    $badgesStmt = $pdo->query($badgesSql);
     $badges = $badgesStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $badges = [];
 }
 
-// Fetch leaderboard
-$leaderboard = $badgeEvaluator->getLeaderboard(10);
+// Fetch leaderboard (students)
+$leaderboard = $badgeEvaluator->getLeaderboard('student', 10);
 
 // Fetch students for manual badge awarding
 try {
-    $studentsStmt = $pdo->query("
-        SELECT id, student_id, first_name, last_name 
-        FROM students 
-        ORDER BY last_name, first_name
-        LIMIT 100
-    ");
-    $students = $studentsStmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($studentIdColumn) {
+        $studentsSql = "
+            SELECT {$studentIdColumn} as identifier, first_name, last_name 
+            FROM students 
+            ORDER BY last_name, first_name
+            LIMIT 200
+        ";
+        $studentsStmt = $pdo->query($studentsSql);
+        $students = $studentsStmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $students = [];
+    }
 } catch (Exception $e) {
     $students = [];
 }
@@ -472,8 +634,8 @@ include 'includes/header_modern.php';
                 <select id="awardUserId" name="user_id" required>
                     <option value="">Select a user...</option>
                     <?php foreach ($students as $student): ?>
-                        <option value="<?php echo $student['id']; ?>">
-                            <?php echo htmlspecialchars($student['last_name'] . ', ' . $student['first_name'] . ' (' . $student['student_id'] . ')'); ?>
+                        <option value="<?php echo htmlspecialchars($student['identifier']); ?>">
+                            <?php echo htmlspecialchars($student['last_name'] . ', ' . $student['first_name'] . ' (' . $student['identifier'] . ')'); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
