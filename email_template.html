@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Attendance Alert Notification</title>
+    <style>
+        /* Reset styles for email compatibility */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #F9FAFB;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        table {
+            border-collapse: collapse;
+            border-spacing: 0;
+        }
+        
+        img {
+            border: 0;
+            outline: none;
+            text-decoration: none;
+            display: block;
+        }
+        
+        /* Main container */
+        .email-wrapper {
+            width: 100%;
+            background-color: #F9FAFB;
+            padding: 40px 0;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(30, 58, 138, 0.1);
+        }
+        
+        /* Header with school branding */
+        .email-header {
+            background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .logo-container {
+            margin-bottom: 20px;
+        }
+        
+        .logo {
+            max-width: 100px;
+            height: auto;
+            margin: 0 auto;
+            border-radius: 50%;
+            background-color: white;
+            padding: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .email-header h1 {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: 0.5px;
+        }
+        
+        .email-header p {
+            color: #E0E7FF;
+            font-size: 14px;
+            margin: 10px 0 0 0;
+        }
+        
+        /* Content area */
+        .email-content {
+            padding: 40px 30px;
+        }
+        
+        .greeting {
+            font-size: 18px;
+            color: #1E3A8A;
+            font-weight: 600;
+            margin: 0 0 20px 0;
+        }
+        
+        .intro-text {
+            color: #4B5563;
+            font-size: 16px;
+            line-height: 1.6;
+            margin: 0 0 30px 0;
+        }
+        
+        /* Status badge */
+        .status-badge {
+            display: inline-block;
+            padding: 12px 28px;
+            background-color: #10B981;
+            color: #ffffff;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 16px;
+            margin: 0 0 30px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        
+        /* Details box */
+        .details-box {
+            background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+            border-left: 5px solid #FBBF24;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #1E3A8A;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .detail-label .icon {
+            margin-right: 8px;
+            font-size: 18px;
+        }
+        
+        .detail-value {
+            color: #374151;
+            font-size: 15px;
+            font-weight: 500;
+        }
+        
+        /* Message box */
+        .message-box {
+            background-color: #FEF3C7;
+            border: 2px solid #FBBF24;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+        
+        .message-box p {
+            margin: 0;
+            color: #92400E;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .message-box strong {
+            color: #78350F;
+        }
+        
+        /* Footer */
+        .email-footer {
+            background-color: #1E3A8A;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .footer-logo {
+            max-width: 60px;
+            height: auto;
+            margin: 0 auto 15px auto;
+            opacity: 0.9;
+        }
+        
+        .footer-school-name {
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            margin: 0 0 5px 0;
+        }
+        
+        .footer-tagline {
+            color: #E0E7FF;
+            font-size: 13px;
+            margin: 0 0 20px 0;
+        }
+        
+        .footer-contact {
+            color: #BFDBFE;
+            font-size: 12px;
+            line-height: 1.8;
+            margin: 0;
+        }
+        
+        .footer-contact a {
+            color: #FBBF24;
+            text-decoration: none;
+        }
+        
+        .footer-copyright {
+            color: #93C5FD;
+            font-size: 11px;
+            margin: 20px 0 0 0;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Responsive design */
+        @media only screen and (max-width: 600px) {
+            .email-wrapper {
+                padding: 20px 0;
+            }
+            
+            .email-container {
+                border-radius: 0;
+            }
+            
+            .email-header {
+                padding: 30px 20px;
+            }
+            
+            .email-header h1 {
+                font-size: 24px;
+            }
+            
+            .email-content {
+                padding: 30px 20px;
+            }
+            
+            .detail-row {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 12px 0;
+            }
+            
+            .detail-value {
+                margin-top: 5px;
+                font-weight: 600;
+            }
+            
+            .status-badge {
+                font-size: 14px;
+                padding: 10px 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-wrapper">
+        <div class="email-container">
+            <!-- Header -->
+            <div class="email-header">
+                <div class="logo-container">
+                    <img src="https://yourdomain.com/images/school_logo.png" alt="School Logo" class="logo" width="100" height="100">
+                </div>
+                <h1>📩 Attendance Alert</h1>
+                <p>Academy of St. Joseph, Claveria Cagayan Inc.</p>
+            </div>
+            
+            <!-- Content -->
+            <div class="email-content">
+                <p class="greeting">Hello [Student Name],</p>
+                
+                <p class="intro-text">
+                    This is a sample email to test if the attendance notification alert is working properly. 
+                    Your attendance has been successfully recorded in our system.
+                </p>
+                
+                <div style="text-align: center;">
+                    <span class="status-badge">✅ Present</span>
+                </div>
+                
+                <!-- Details Box -->
+                <div class="details-box">
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <span class="icon">👤</span>
+                            Student Name
+                        </span>
+                        <span class="detail-value">[Student Name]</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <span class="icon">📊</span>
+                            Status
+                        </span>
+                        <span class="detail-value">Present</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <span class="icon">📅</span>
+                            Date
+                        </span>
+                        <span class="detail-value">November 8, 2025</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">
+                            <span class="icon">⏰</span>
+                            Time
+                        </span>
+                        <span class="detail-value">8:30 AM</span>
+                    </div>
+                </div>
+                
+                <!-- Message Box -->
+                <div class="message-box">
+                    <p>
+                        <strong>📌 Important Note:</strong> This is an automated attendance notification. 
+                        Please do not reply to this email. If you have any questions or concerns, 
+                        please contact the school office directly.
+                    </p>
+                </div>
+                
+                <p style="color: #6B7280; font-size: 14px; margin: 30px 0 0 0;">
+                    Thank you for using our attendance tracking system.
+                </p>
+            </div>
+            
+            <!-- Footer -->
+            <div class="email-footer">
+                <img src="https://yourdomain.com/images/school_logo.png" alt="School Logo" class="footer-logo" width="60" height="60">
+                <p class="footer-school-name">Academy of St. Joseph, Claveria Cagayan Inc.</p>
+                <p class="footer-tagline">Excellence in Education Since 1950</p>
+                <p class="footer-contact">
+                    📍 Claveria, Cagayan, Philippines<br>
+                    📧 Email: <a href="mailto:attendance@school.edu.ph">attendance@school.edu.ph</a><br>
+                    📞 Phone: (078) 123-4567
+                </p>
+                <p class="footer-copyright">
+                    © 2025 Academy of St. Joseph. All rights reserved.<br>
+                    Automated Attendance Tracking System
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
