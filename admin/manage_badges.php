@@ -10,6 +10,7 @@
 require_once 'config.php';
 require_once __DIR__ . '/../includes/auth_middleware.php';
 require_once __DIR__ . '/../includes/badge_evaluator.php';
+require_once __DIR__ . '/../includes/email_notifications.php';
 
 // Require admin role for badge management
 requireRole([ROLE_ADMIN]);
@@ -70,11 +71,16 @@ function badge_period_dates(string $period): array {
 // Handle form submissions
 $message = '';
 $messageType = '';
+$csrfToken = generateCSRFToken();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
-    
-    if ($action === 'add_badge') {
+    if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        $message = "Invalid or missing CSRF token.";
+        $messageType = "error";
+    } else {
+        $action = $_POST['action'] ?? '';
+
+        if ($action === 'add_badge') {
         $name = trim($_POST['name'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $icon = trim($_POST['icon'] ?? 'award');
@@ -278,8 +284,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute($params);
             
             logAdminActivity('AWARD_BADGE', "Awarded badge ID {$badgeId} to {$userType} ID {$userId}");
-            
-            $message = "Badge awarded successfully!";
+
+            $emailSent = false;
+            try {
+                $emailConfig = require __DIR__ . '/../config/email_config.php';
+                $emailSent = sendBadgeAwardedEmail($pdo, $badgeId, $userType, $userId, $currentAdmin, $emailConfig, $now);
+            } catch (Exception $e) {
+                error_log('Badge award email error: ' . $e->getMessage());
+            }
+
+            $message = $emailSent
+                ? "Badge awarded successfully! Email notification sent."
+                : "Badge awarded successfully! Email notification could not be sent.";
             $messageType = "success";
         } catch (Exception $e) {
             $message = "Error awarding badge: " . $e->getMessage();
@@ -297,6 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Exception $e) {
             $message = "Error evaluating badges: " . $e->getMessage();
             $messageType = "error";
+        }
         }
     }
 }
@@ -465,6 +482,7 @@ include 'includes/header_modern.php';
                                     </button>
                                     <form method="POST" style="display:inline;" 
                                           onsubmit="return confirm('Delete this badge? This will also remove it from all users.');">
+                                        <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
                                         <input type="hidden" name="action" value="delete_badge">
                                         <input type="hidden" name="badge_id" value="<?php echo $badge['id']; ?>">
                                         <button type="submit" class="btn btn-sm btn-icon btn-danger" title="Delete">
@@ -525,6 +543,7 @@ include 'includes/header_modern.php';
         <span class="close" onclick="closeBadgeModal()">&times;</span>
         <h2 id="badgeModalTitle"><i class="fas fa-award"></i> Add Badge</h2>
         <form method="POST" id="badgeForm">
+            <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
             <input type="hidden" name="action" id="badgeAction" value="add_badge">
             <input type="hidden" name="badge_id" id="badgeId">
             
@@ -537,6 +556,7 @@ include 'includes/header_modern.php';
                 <div class="form-group">
                     <label for="badgeType">Badge Type</label>
                     <select id="badgeType" name="badge_type">
+                        <option value="manual">Manual (Awarded by Admin)</option>
                         <option value="perfect_attendance">Perfect Attendance</option>
                         <option value="on_time_streak">On-Time Streak</option>
                         <option value="most_improved">Most Improved</option>
@@ -618,6 +638,7 @@ include 'includes/header_modern.php';
         <p id="awardBadgeName"></p>
         
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
             <input type="hidden" name="action" value="award_badge">
             <input type="hidden" name="badge_id" id="awardBadgeId">
             
@@ -661,6 +682,7 @@ include 'includes/header_modern.php';
         <p>This will check all students against badge criteria and award any earned badges automatically.</p>
         
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
             <input type="hidden" name="action" value="evaluate_badges">
             
             <div class="form-actions">

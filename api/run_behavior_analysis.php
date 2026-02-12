@@ -15,7 +15,14 @@ require_once __DIR__ . '/../includes/auth_middleware.php';
 
 // Start session and require admin/teacher role
 session_start();
-requireRole([ROLE_ADMIN, ROLE_TEACHER]);
+if (!isAuthenticated() || !hasRole([ROLE_ADMIN, ROLE_TEACHER])) {
+    http_response_code(401);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Unauthorized. Please log in again.'
+    ]);
+    exit;
+}
 
 try {
     $startTime = microtime(true);

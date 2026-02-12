@@ -20,31 +20,36 @@ $pageTitle = 'Behavior Monitoring';
 $pageIcon = 'chart-line';
 
 $additionalCSS = ['../css/manual-attendance-modern.css?v=' . time()];
+$csrfToken = generateCSRFToken();
 
 // Initialize behavior analyzer
 $analyzer = new BehaviorAnalyzer($pdo);
 
 // Handle alert acknowledgment
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acknowledge_alert'])) {
-    $alertId = intval($_POST['alert_id']);
-    $notes = trim($_POST['notes'] ?? '');
-    
-    try {
-        $acknowledged = $analyzer->acknowledgeAlert($alertId, $currentAdmin['id'], $notes);
-        if (!$acknowledged) {
-            throw new Exception('Failed to acknowledge alert.');
-        }
+    if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        $errorMessage = "Invalid or missing CSRF token.";
+    } else {
+        $alertId = intval($_POST['alert_id']);
+        $notes = trim($_POST['notes'] ?? '');
+        
+        try {
+            $acknowledged = $analyzer->acknowledgeAlert($alertId, $currentAdmin['id'], $notes);
+            if (!$acknowledged) {
+                throw new Exception('Failed to acknowledge alert.');
+            }
 
-        $emailConfig = require __DIR__ . '/../config/email_config.php';
-        $emailSent = sendBehaviorAcknowledgementEmail($pdo, $alertId, $currentAdmin, $notes, $emailConfig);
+            $emailConfig = require __DIR__ . '/../config/email_config.php';
+            $emailSent = sendBehaviorAcknowledgementEmail($pdo, $alertId, $currentAdmin, $notes, $emailConfig);
 
-        if ($emailSent) {
-            $successMessage = "Alert acknowledged successfully. Email notification sent.";
-        } else {
-            $successMessage = "Alert acknowledged successfully. Email notification could not be sent.";
+            if ($emailSent) {
+                $successMessage = "Alert acknowledged successfully. Email notification sent.";
+            } else {
+                $successMessage = "Alert acknowledged successfully. Email notification could not be sent.";
+            }
+        } catch (Exception $e) {
+            $errorMessage = "Error acknowledging alert: " . $e->getMessage();
         }
-    } catch (Exception $e) {
-        $errorMessage = "Error acknowledging alert: " . $e->getMessage();
     }
 }
 
@@ -484,6 +489,7 @@ include 'includes/header_modern.php';
         <h2><i class="fas fa-check-circle"></i> Acknowledge Alert</h2>
         <p id="acknowledgeStudent"></p>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
             <input type="hidden" name="acknowledge_alert" value="1">
             <input type="hidden" name="alert_id" id="acknowledgeAlertId">
             

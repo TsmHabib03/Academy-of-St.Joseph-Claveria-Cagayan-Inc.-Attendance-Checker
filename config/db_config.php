@@ -1,18 +1,35 @@
 <?php
 /**
  * Database Configuration File
- * 
+ *
  * INSTRUCTIONS:
- * Change the DB_NAME below to match your actual database name.
- * This will be used by includes/database.php for all connections.
+ * Use environment variables or config/secrets.local.php for credentials.
+ * secrets.local.php is ignored by git to avoid leaking passwords.
  */
 
+$secrets = [];
+$secretsPath = __DIR__ . '/secrets.local.php';
+if (file_exists($secretsPath)) {
+    $loaded = require $secretsPath;
+    if (is_array($loaded)) {
+        $secrets = $loaded;
+    }
+}
+
+$getConfig = static function (string $key, $default = '') use ($secrets) {
+    $value = getenv($key);
+    if ($value === false || $value === '') {
+        $value = $secrets[$key] ?? $default;
+    }
+    return $value;
+};
+
 // Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root'); // Default username should be root
-define('DB_PASS', 'muning0328'); // Set muning0328 into blank '' as default password
-define('DB_NAME', 'asj_attendease_db'); // ← NEW DATABASE NAME
-define('DB_CHARSET', 'utf8mb4');
+define('DB_HOST', $getConfig('DB_HOST', 'localhost'));
+define('DB_USER', $getConfig('DB_USER', 'root')); // Default username should be root
+define('DB_PASS', $getConfig('DB_PASS', '')); // Set in secrets.local.php or env
+define('DB_NAME', $getConfig('DB_NAME', 'asj_attendease_db')); // Database name
+define('DB_CHARSET', $getConfig('DB_CHARSET', 'utf8mb4'));
 
 // Set timezone
 date_default_timezone_set('Asia/Manila');

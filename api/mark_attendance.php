@@ -178,7 +178,7 @@ function generateEmailTemplate($emailConfig, $student, $type, $details, $userTyp
         '<tr><td style="padding:24px 20px 8px;text-align:center;">' .
             '<div style="display:inline-block;margin-bottom:12px;">' . $badge . '</div>' .
             '<h2 style="margin:8px 0 6px;color:' . $statusColor . ';font-size:18px;font-weight:700;">' . htmlspecialchars($statusText) . '</h2>' .
-            '<p style="margin:0;color:#666;font-size:13px;">' . $displayDate . ' &nbsp;•&nbsp; ' . $displayTime . '</p>' .
+            '<p style="margin:0;color:#666;font-size:13px;">' . $displayDate . ' &nbsp;&bull;&nbsp; ' . $displayTime . '</p>' .
         '</td></tr>' .
         // Student card
         '<tr><td style="padding:18px 20px 0;">' .
@@ -211,7 +211,7 @@ function generateEmailTemplate($emailConfig, $student, $type, $details, $userTyp
                     '<td style="padding:10px 12px;">Action</td><td style="padding:10px 12px;text-align:right;">' . htmlspecialchars($statusText) . '</td>' .
                 '</tr>' .
                 '<tr>' .
-                    '<td style="padding:10px 12px;color:#666;font-size:12px;">Timestamp</td><td style="padding:10px 12px;text-align:right;font-weight:600;color:#222;">' . $displayDate . ' • ' . $displayTime . '</td>' .
+                    '<td style="padding:10px 12px;color:#666;font-size:12px;">Timestamp</td><td style="padding:10px 12px;text-align:right;font-weight:600;color:#222;">' . $displayDate . ' &bull; ' . $displayTime . '</td>' .
                 '</tr>' .
             '</table>' .
         '</td></tr>' .

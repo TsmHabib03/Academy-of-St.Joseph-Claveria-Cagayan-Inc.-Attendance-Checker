@@ -319,6 +319,10 @@ class BadgeEvaluator {
                 case 'perfect_attendance':
                     $qualified = $this->checkPerfectAttendance($userType, $userId, $badge['criteria_period'] ?? 'monthly');
                     break;
+
+                case 'monthly_perfect':
+                    $qualified = $this->checkPerfectAttendance($userType, $userId, 'monthly');
+                    break;
                     
                 case 'on_time_streak':
                     $qualified = $this->checkOnTimeStreak($userType, $userId, (int)($badge['criteria_value'] ?? 0));
