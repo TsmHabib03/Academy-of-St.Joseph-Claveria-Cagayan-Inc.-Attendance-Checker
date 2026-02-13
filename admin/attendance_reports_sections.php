@@ -530,14 +530,26 @@ include 'includes/header_modern.php';
         white-space: nowrap;
     }
 
-    .status-completed {
+    .status-present {
         background: var(--success-light);
         color: var(--success-dark);
     }
 
-    .status-incomplete {
+    .status-late,
+    .status-half-day {
         background: var(--warning-light);
         color: var(--warning-dark);
+    }
+
+    .status-absent {
+        background: var(--danger-light);
+        color: var(--danger-dark);
+    }
+
+    .status-on-leave,
+    .status-default {
+        background: var(--asj-green-100);
+        color: var(--asj-green-700);
     }
 
     .section-badge {
@@ -897,8 +909,8 @@ include 'includes/header_modern.php';
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <div class="stat-details">
-                    <div class="stat-value" id="completed_count">0</div>
-                    <div class="stat-label">Completed (In & Out)</div>
+                    <div class="stat-value" id="scanned_in_count">0</div>
+                    <div class="stat-label">Scanned In</div>
                 </div>
             </div>
         </div>
@@ -906,11 +918,11 @@ include 'includes/header_modern.php';
         <div class="stat-card-modern warning">
             <div class="stat-card-content">
                 <div class="stat-icon-modern">
-                    <i class="fas fa-clock"></i>
+                    <i class="fas fa-exclamation-triangle"></i>
                 </div>
                 <div class="stat-details">
-                    <div class="stat-value" id="incomplete_count">0</div>
-                    <div class="stat-label">Incomplete (In Only)</div>
+                    <div class="stat-value" id="late_count">0</div>
+                    <div class="stat-label">Late Arrivals</div>
                 </div>
             </div>
         </div>
@@ -958,8 +970,6 @@ include 'includes/header_modern.php';
                         <th>Section</th>
                         <th>Date</th>
                         <th>Time In</th>
-                        <th>Time Out</th>
-                        <th>Duration</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -1087,8 +1097,8 @@ async function generateReport() {
 // Display Summary Statistics
 function displaySummary(summary) {
     document.getElementById('total_records').textContent = summary.total_records || 0;
-    document.getElementById('completed_count').textContent = summary.completed_count || 0;
-    document.getElementById('incomplete_count').textContent = summary.incomplete_count || 0;
+    document.getElementById('scanned_in_count').textContent = summary.scanned_in_count || 0;
+    document.getElementById('late_count').textContent = summary.late_count || 0;
     document.getElementById('sections_count').textContent = summary.sections_count || 0;
 }
 
@@ -1121,9 +1131,34 @@ function displayRecords() {
         row.style.animation = `fadeIn 0.3s ease ${index * 0.05}s forwards`;
         row.style.opacity = '0';
         
-        const statusClass = record.time_out ? 'status-completed' : 'status-incomplete';
-        const statusText = record.time_out ? 'Completed' : 'Incomplete';
-        const statusIcon = record.time_out ? 'fa-check-circle' : 'fa-clock';
+        const normalizedStatus = (record.status || '').toLowerCase();
+        let statusClass = 'status-default';
+        let statusText = 'Recorded';
+        let statusIcon = 'fa-info-circle';
+
+        if (normalizedStatus === 'late' || record.is_late) {
+            statusClass = 'status-late';
+            statusText = 'Late';
+            statusIcon = 'fa-exclamation-triangle';
+        } else if (normalizedStatus === 'present' || normalizedStatus === 'time_in') {
+            statusClass = 'status-present';
+            statusText = 'Present';
+            statusIcon = 'fa-check-circle';
+        } else if (normalizedStatus === 'absent') {
+            statusClass = 'status-absent';
+            statusText = 'Absent';
+            statusIcon = 'fa-user-times';
+        } else if (normalizedStatus === 'half_day') {
+            statusClass = 'status-half-day';
+            statusText = 'Half Day';
+            statusIcon = 'fa-adjust';
+        } else if (normalizedStatus === 'on_leave') {
+            statusClass = 'status-on-leave';
+            statusText = 'On Leave';
+            statusIcon = 'fa-calendar-check';
+        } else if (normalizedStatus) {
+            statusText = normalizedStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
         
         row.innerHTML = `
             <td><strong>${escapeHtml(record.lrn)}</strong></td>
@@ -1131,8 +1166,6 @@ function displayRecords() {
             <td><span class="section-badge">${escapeHtml(record.section)}</span></td>
             <td>${escapeHtml(record.date_formatted)}</td>
             <td>${escapeHtml(record.time_in || '-')}</td>
-            <td>${escapeHtml(record.time_out || '-')}</td>
-            <td>${escapeHtml(record.duration)}</td>
             <td>
                 <span class="status-badge-modern ${statusClass}">
                     <i class="fas ${statusIcon}"></i>

@@ -885,19 +885,19 @@
             </div>
             <div class="manual-modal-body">
                 <div class="manual-help-text">
-                    <i class="fas fa-info-circle"></i> If the camera isn't working, you can manually enter the student's LRN (11-13 digits) or a teacher's 7-digit Employee Number.
+                    <i class="fas fa-info-circle"></i> If the camera isn't working, you can manually enter the student's LRN (11-13 digits) or a teacher's 7-digit Faculty ID Number.
                 </div>
                 <form id="manual-form">
                     <div class="form-group">
                         <label class="form-label" for="manual-lrn">
-                            <i class="fas fa-id-card"></i> LRN (Learner Reference Number)
+                            <i class="fas fa-id-card"></i> LRN / Faculty ID Number
                         </label>
                         <input 
                             type="text" 
                             id="manual-lrn" 
                             name="lrn" 
                             class="form-control" 
-                            placeholder="Enter 11-13 digit LRN or 7-digit Employee Number"
+                            placeholder="Enter 11-13 digit LRN or 7-digit Faculty ID Number"
                             pattern="([0-9]{11,13}|[0-9]{7})"
                             maxlength="13"
                             inputmode="numeric"
@@ -1237,10 +1237,10 @@
             const userType = data.user_type || 'student';
             if (data.status === 'time_in') {
                 titleElement.textContent = (userType === 'teacher') ? 'Welcome Teacher! ✓' : 'Welcome! ✓';
-            } else if (data.status === 'time_out') {
-                titleElement.textContent = (userType === 'teacher') ? 'See You Teacher! ✓' : 'See You! ✓';
+            } else if (data.status === 'already_recorded') {
+                titleElement.textContent = (userType === 'teacher') ? 'Already Recorded (Teacher) ✓' : 'Already Recorded ✓';
             } else {
-                titleElement.textContent = 'Success! ✓';
+                titleElement.textContent = 'Attendance Recorded ✓';
             }
             // Update displayed name/label; include identifier for teachers
             const displayName = data.student_name || (userType === 'teacher' ? 'Teacher' : 'Student');
@@ -1251,9 +1251,8 @@
             }
 
             // Format time display
-            const timeLabel = data.status === 'time_in' ? 'Time In' :
-                             data.status === 'time_out' ? 'Time Out' : 'Time';
-            const timeValue = data.time_in || data.time_out || new Date().toLocaleTimeString('en-US', {
+            const timeLabel = 'Time In';
+            const timeValue = data.time_in || new Date().toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
                 hour12: true
@@ -1338,9 +1337,9 @@
             const lrn = lrnInput.value.trim();
             const errorDiv = document.getElementById('lrn-error');
             
-            // Validate LRN or Employee Number (7 OR 11-13 digits)
+            // Validate LRN or Faculty ID Number (7 OR 11-13 digits)
             if (!/^(?:\d{11,13}|\d{7})$/.test(lrn)) {
-                errorDiv.textContent = 'Please enter a valid 11-13 digit LRN or 7-digit Employee Number';
+                errorDiv.textContent = 'Please enter a valid 11-13 digit LRN or 7-digit Faculty ID Number';
                 errorDiv.classList.add('active');
                 lrnInput.style.borderColor = 'var(--error-500)';
                 return;
@@ -1365,7 +1364,7 @@
             // Only allow numbers
             input.value = value.replace(/[^\d]/g, '');
 
-            // Accept either 7 digits (employee number) or 11-13 digits (LRN)
+            // Accept either 7 digits (faculty ID number) or 11-13 digits (LRN)
             if ((input.value.length >= 11 && input.value.length <= 13) || input.value.length === 7) {
                 errorDiv.classList.remove('active');
                 input.style.borderColor = 'var(--success-500)';

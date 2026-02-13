@@ -48,6 +48,32 @@ if (isset($_GET['id'])) {
     }
 }
 
+// Resolve identifier columns across schema variants
+$teacherIdentifierCandidates = ['Faculty_ID_Number', 'faculty_id_number', 'employee_number', 'employee_id'];
+$teacherIdentifierColumn = null;
+foreach ($teacherIdentifierCandidates as $candidate) {
+    if (columnExists($pdo, 'teachers', $candidate)) {
+        $teacherIdentifierColumn = $candidate;
+        break;
+    }
+}
+
+$attendanceIdentifierCandidates = ['Faculty_ID_Number', 'faculty_id_number', 'employee_number', 'employee_id'];
+$attendanceIdentifierColumn = null;
+foreach ($attendanceIdentifierCandidates as $candidate) {
+    if (columnExists($pdo, 'teacher_attendance', $candidate)) {
+        $attendanceIdentifierColumn = $candidate;
+        break;
+    }
+}
+
+$teacherHasEmployeeId = columnExists($pdo, 'teachers', 'employee_id');
+$teacherHasUpdatedAt = columnExists($pdo, 'teachers', 'updated_at');
+$teacherHasShift = columnExists($pdo, 'teachers', 'shift');
+$teacherHasCreatedAt = columnExists($pdo, 'teachers', 'created_at');
+$attendanceHasEmployeeNumber = columnExists($pdo, 'teacher_attendance', 'employee_number');
+$attendanceHasEmployeeId = columnExists($pdo, 'teacher_attendance', 'employee_id');
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -55,7 +81,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'add' || $action === 'edit') {
         // Get form data
         $employeeNumber = trim($_POST['employee_number'] ?? '');
-        $employeeId = trim($_POST['employee_id'] ?? '');
         $firstName = trim($_POST['first_name'] ?? '');
         $middleName = trim($_POST['middle_name'] ?? '');
         $lastName = trim($_POST['last_name'] ?? '');
@@ -70,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors = [];
         
         if (empty($employeeNumber) || !preg_match('/^\d{7}$/', $employeeNumber)) {
-            $errors[] = "Employee Number is required and must be a 7-digit number.";
+            $errors[] = "Faculty ID Number is required and must be a 7-digit number.";
         }
         
         if (empty($firstName)) {
@@ -99,40 +124,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array($shift, $shiftOptions, true)) {
             $errors[] = "Invalid shift selected.";
         }
+
+        if ($teacherIdentifierColumn === null) {
+            $errors[] = "Teacher identifier column is missing in the database. Expected one of: Faculty_ID_Number, employee_number, or employee_id.";
+        }
         
         if (empty($errors)) {
             try {
                 if ($action === 'add') {
-                    // Ensure employee_number is present and unique (7 digits)
+                    $teacherIdColumnSql = '`' . $teacherIdentifierColumn . '`';
+
+                    // Ensure faculty identifier is present and unique (7 digits)
                     if (!preg_match('/^\d{7}$/', $employeeNumber)) {
-                        $message = "Employee Number must be a 7-digit number.";
+                        $message = "Faculty ID Number must be a 7-digit number.";
                         $messageType = "error";
                     } else {
-                        $checkStmt = $pdo->prepare("SELECT id FROM teachers WHERE employee_number = ?");
+                        $checkStmt = $pdo->prepare("SELECT id FROM teachers WHERE {$teacherIdColumnSql} = ?");
                         $checkStmt->execute([$employeeNumber]);
                         if ($checkStmt->fetch()) {
-                            $message = "A teacher with this Employee Number already exists.";
+                            $message = "A teacher with this Faculty ID Number already exists.";
                             $messageType = "error";
                         } else {
-                            // Generate QR code using Employee Number
+                            // Generate QR code using Faculty ID Number
                             $qrData = 'TEACHER:' . $employeeNumber;
                             $qrCodePath = generateQRCode($qrData, 'teacher');
 
                             
-                                // Insert new teacher (employee_id will be generated automatically)
-                                $stmt = $pdo->prepare("
-                                    INSERT INTO teachers 
-                                    (employee_number, first_name, middle_name, last_name, sex, mobile_number, email, department, position, `shift`, qr_code, created_at)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                                ");
-                                $stmt->execute([
-                                    $employeeNumber, $firstName, $middleName, $lastName,
-                                    $sex, $mobileNumber, $email, $department, $position, $shift, $qrCodePath
-                                ]);
+                            $insertCols = [
+                                $teacherIdColumnSql,
+                                'first_name',
+                                'middle_name',
+                                'last_name',
+                                'sex',
+                                'mobile_number',
+                                'email',
+                                'department',
+                                'position'
+                            ];
+                            $insertValues = [
+                                $employeeNumber, $firstName, $middleName, $lastName,
+                                $sex, $mobileNumber, $email, $department, $position
+                            ];
+                            if ($teacherHasShift) {
+                                $insertCols[] = '`shift`';
+                                $insertValues[] = $shift;
+                            }
+                            $insertCols[] = 'qr_code';
+                            $insertValues[] = $qrCodePath;
+
+                            if ($teacherHasCreatedAt) {
+                                $insertCols[] = 'created_at';
+                            }
+
+                            $placeholders = array_fill(0, count($insertValues), '?');
+                            if ($teacherHasCreatedAt) {
+                                $placeholders[] = 'NOW()';
+                            }
+
+                            $stmt = $pdo->prepare(
+                                "INSERT INTO teachers (" . implode(', ', $insertCols) . ") VALUES (" . implode(', ', $placeholders) . ")"
+                            );
+                            $stmt->execute($insertValues);
 
                                 // Generate a simple employee_id using the new row id
                                 $newTeacherId = $pdo->lastInsertId();
-                                if ($newTeacherId) {
+                                if ($newTeacherId && $teacherHasEmployeeId) {
                                     $generatedEmpId = 'EMP-' . str_pad($newTeacherId, 6, '0', STR_PAD_LEFT);
                                     $upd = $pdo->prepare("UPDATE teachers SET employee_id = ? WHERE id = ?");
                                     $upd->execute([$generatedEmpId, $newTeacherId]);
@@ -150,26 +206,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     // Update existing teacher
                     $teacherId = intval($_POST['teacher_id']);
+                    $teacherIdColumnSql = '`' . $teacherIdentifierColumn . '`';
                     
-                    // Check for duplicate employee_number (excluding current teacher)
-                    $checkStmt = $pdo->prepare("SELECT id FROM teachers WHERE employee_number = ? AND id != ?");
+                    // Check for duplicate faculty identifier (excluding current teacher)
+                    $checkStmt = $pdo->prepare("SELECT id FROM teachers WHERE {$teacherIdColumnSql} = ? AND id != ?");
                     $checkStmt->execute([$employeeNumber, $teacherId]);
                     if ($checkStmt->fetch()) {
-                        $message = "Another teacher with this Employee Number already exists.";
+                        $message = "Another teacher with this Faculty ID Number already exists.";
                         $messageType = "error";
                     } else {
-                        
-                            $stmt = $pdo->prepare("
-                                UPDATE teachers 
-                                SET employee_number = ?, first_name = ?, middle_name = ?, last_name = ?,
-                                    sex = ?, mobile_number = ?, email = ?, department = ?, position = ?, `shift` = ?,
-                                    updated_at = NOW()
-                                WHERE id = ?
-                            ");
-                            $stmt->execute([
-                                $employeeNumber, $firstName, $middleName, $lastName,
-                                $sex, $mobileNumber, $email, $department, $position, $shift, $teacherId
-                            ]);
+                        $setParts = [
+                            "{$teacherIdColumnSql} = ?",
+                            "first_name = ?",
+                            "middle_name = ?",
+                            "last_name = ?",
+                            "sex = ?",
+                            "mobile_number = ?",
+                            "email = ?",
+                            "department = ?",
+                            "position = ?"
+                        ];
+                        $updateValues = [
+                            $employeeNumber, $firstName, $middleName, $lastName,
+                            $sex, $mobileNumber, $email, $department, $position
+                        ];
+                        if ($teacherHasShift) {
+                            $setParts[] = "`shift` = ?";
+                            $updateValues[] = $shift;
+                        }
+                        if ($teacherHasUpdatedAt) {
+                            $setParts[] = "updated_at = NOW()";
+                        }
+                        $updateValues[] = $teacherId;
+
+                        $stmt = $pdo->prepare("
+                            UPDATE teachers 
+                            SET " . implode(', ', $setParts) . "
+                            WHERE id = ?
+                        ");
+                        $stmt->execute($updateValues);
 
                         logAdminActivity('EDIT_TEACHER', "Updated teacher: {$firstName} {$lastName} (Num: {$employeeNumber})");
 
@@ -196,22 +271,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         try {
             // Get teacher info for logging
-            $stmt = $pdo->prepare("SELECT employee_number, employee_id, first_name, last_name FROM teachers WHERE id = ?");
+            $teacherSelect = ['id', 'first_name', 'last_name'];
+            if ($teacherIdentifierColumn !== null) {
+                $teacherSelect[] = '`' . $teacherIdentifierColumn . '` AS teacher_identifier';
+            }
+            if ($teacherHasEmployeeId) {
+                $teacherSelect[] = 'employee_id';
+            }
+            $stmt = $pdo->prepare("SELECT " . implode(', ', $teacherSelect) . " FROM teachers WHERE id = ?");
             $stmt->execute([$teacherId]);
             $teacher = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($teacher) {
-                // Prepare id display and delete attendance records matching either employee_id or employee_number
-                $empNum = $teacher['employee_number'] ?? null;
-                    $stmtAtt = $pdo->prepare("DELETE FROM teacher_attendance WHERE employee_id = ? OR employee_number = ?");
-                    $stmtAtt->execute([$teacher['employee_id'] ?? null, $empNum]);
-                $deletedAttendance = $stmtAtt->rowCount();
+                $identifierValue = $teacher['teacher_identifier'] ?? null;
+                $deletedAttendance = 0;
+
+                if ($attendanceIdentifierColumn !== null && !empty($identifierValue)) {
+                    $attendanceIdColumnSql = '`' . $attendanceIdentifierColumn . '`';
+                    $stmtAtt = $pdo->prepare("DELETE FROM teacher_attendance WHERE {$attendanceIdColumnSql} = ?");
+                    $stmtAtt->execute([$identifierValue]);
+                    $deletedAttendance = $stmtAtt->rowCount();
+                } elseif ($attendanceHasEmployeeId && !empty($teacher['employee_id'])) {
+                    $stmtAtt = $pdo->prepare("DELETE FROM teacher_attendance WHERE employee_id = ?");
+                    $stmtAtt->execute([$teacher['employee_id']]);
+                    $deletedAttendance = $stmtAtt->rowCount();
+                }
 
                 // Delete teacher
                 $stmt = $pdo->prepare("DELETE FROM teachers WHERE id = ?");
                 $stmt->execute([$teacherId]);
 
-                $idDisplay = $empNum ?? ($teacher['employee_id'] ?? 'N/A');
+                $idDisplay = $identifierValue ?? ($teacher['employee_id'] ?? 'N/A');
                 logAdminActivity('DELETE_TEACHER', 
                     "Deleted teacher: {$teacher['first_name']} {$teacher['last_name']} (ID: {$idDisplay}). " .
                     "Also deleted {$deletedAttendance} attendance records.");
@@ -230,15 +320,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $teacherId = intval($_POST['teacher_id']);
         
         try {
-                    // Only select columns that exist to avoid SQL errors if employee_id was removed
-                    $stmt = $pdo->prepare("SELECT employee_number, id FROM teachers WHERE id = ?");
+                    // Select only the resolved identifier column and id
+                    $selectCols = ['id'];
+                    if ($teacherIdentifierColumn !== null) {
+                        $selectCols[] = '`' . $teacherIdentifierColumn . '` AS teacher_identifier';
+                    }
+                    $stmt = $pdo->prepare("SELECT " . implode(', ', $selectCols) . " FROM teachers WHERE id = ?");
                     $stmt->execute([$teacherId]);
                     $teacher = $stmt->fetch(PDO::FETCH_ASSOC);
 
                     if ($teacher) {
-                        $empNum = $teacher['employee_number'] ?? null;
-                        // Use employee_number when available, otherwise fall back to a safe ID-based identifier
-                        $identifierValue = $empNum ?: ('ID' . ($teacher['id'] ?? $teacherId));
+                        $identifierValue = $teacher['teacher_identifier'] ?? ('ID' . ($teacher['id'] ?? $teacherId));
                         $qrData = 'TEACHER:' . $identifierValue;
                         $qrCodePath = generateQRCode($qrData, 'teacher');
 
@@ -262,20 +354,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Fetch all teachers for listing
 try {
-    // Determine schema and which identifier exists in teacher_attendance
-    $schema = $pdo->query('SELECT DATABASE()')->fetchColumn();
-    $colStmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = 'teacher_attendance' AND COLUMN_NAME = :col");
-    $colStmt->execute([':schema' => $schema, ':col' => 'employee_number']);
-    $hasEmpNum = $colStmt->fetchColumn() > 0;
-    $colStmt->execute([':schema' => $schema, ':col' => 'employee_id']);
-    $hasEmpId = $colStmt->fetchColumn() > 0;
-
-    if ($hasEmpNum) {
-        $sub = "(SELECT MAX(date) FROM teacher_attendance WHERE employee_number = t.employee_number) as last_attendance";
-    } elseif ($hasEmpId) {
-        $sub = "(SELECT MAX(date) FROM teacher_attendance WHERE employee_id = t.employee_id) as last_attendance";
+    if ($attendanceIdentifierColumn !== null && $teacherIdentifierColumn !== null) {
+        $attendanceIdColumnSql = '`' . $attendanceIdentifierColumn . '`';
+        $teacherIdColumnSql = '`' . $teacherIdentifierColumn . '`';
+        $sub = "(SELECT MAX(date) FROM teacher_attendance WHERE {$attendanceIdColumnSql} = t.{$teacherIdColumnSql}) AS last_attendance";
     } else {
-        $sub = "NULL as last_attendance";
+        $sub = "NULL AS last_attendance";
     }
 
     $sql = "SELECT t.*, {$sub} FROM teachers t ORDER BY t.last_name, t.first_name";
@@ -290,6 +374,19 @@ try {
 $departments = ['Science', 'Mathematics', 'English', 'Filipino', 'Social Studies', 'TLE', 'MAPEH', 'Values Education', 'Administration', 'Other'];
 // Shift options for teacher scheduling
 $shiftOptions = ['morning', 'afternoon', 'both'];
+
+$editTeacherIdentifierValue = $_POST['employee_number'] ?? '';
+if ($editMode && is_array($editTeacher)) {
+    if ($teacherIdentifierColumn !== null && isset($editTeacher[$teacherIdentifierColumn])) {
+        $editTeacherIdentifierValue = (string) $editTeacher[$teacherIdentifierColumn];
+    } elseif (isset($editTeacher['employee_number'])) {
+        $editTeacherIdentifierValue = (string) $editTeacher['employee_number'];
+    } elseif (isset($editTeacher['employee_id'])) {
+        $editTeacherIdentifierValue = (string) $editTeacher['employee_id'];
+    } elseif (isset($editTeacher['Faculty_ID_Number'])) {
+        $editTeacherIdentifierValue = (string) $editTeacher['Faculty_ID_Number'];
+    }
+}
 
 include 'includes/header_modern.php';
 ?>
@@ -384,10 +481,10 @@ include 'includes/header_modern.php';
             
             <div class="form-grid two-col">
                 <div class="form-group">
-                    <label for="employee_number">Employee Number <span class="required">*</span></label>
+                    <label for="employee_number">Faculty ID Number <span class="required">*</span></label>
                     <input type="text" id="employee_number" name="employee_number" class="form-input"
-                           value="<?php echo htmlspecialchars($editTeacher['employee_number'] ?? $_POST['employee_number'] ?? ''); ?>"
-                           placeholder="7-digit number e.g., 4354188" required pattern="\d{7}">
+                           value="<?php echo htmlspecialchars($editTeacherIdentifierValue); ?>"
+                           placeholder="7-digit faculty ID e.g., 4354188" required pattern="\d{7}">
                 </div>
 
                 
@@ -496,7 +593,7 @@ include 'includes/header_modern.php';
             <table class="data-table" id="teachersTable">
                 <thead>
                     <tr>
-                        <th>Employee Number</th>
+                        <th>Faculty ID Number</th>
                         <th>Name</th>
                         <th>Sex</th>
                         <th>Department</th>
@@ -520,16 +617,14 @@ include 'includes/header_modern.php';
                         }
 
                         try {
-                            $schema = $pdo->query('SELECT DATABASE()')->fetchColumn();
-                            $c = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table AND COLUMN_NAME = :col");
-                            $c->execute([':schema' => $schema, ':table' => 'teachers', ':col' => 'employee_number']);
-                            $diag['teachers_has_employee_number'] = $c->fetchColumn() > 0 ? 'yes' : 'no';
-                            $c->execute([':schema' => $schema, ':table' => 'teachers', ':col' => 'employee_id']);
-                            $diag['teachers_has_employee_id'] = $c->fetchColumn() > 0 ? 'yes' : 'no';
-                            $c->execute([':schema' => $schema, ':table' => 'teacher_attendance', ':col' => 'employee_number']);
-                            $diag['attendance_has_employee_number'] = $c->fetchColumn() > 0 ? 'yes' : 'no';
-                            $c->execute([':schema' => $schema, ':table' => 'teacher_attendance', ':col' => 'employee_id']);
-                            $diag['attendance_has_employee_id'] = $c->fetchColumn() > 0 ? 'yes' : 'no';
+                            $diag['teachers_has_faculty_id_number'] = columnExists($pdo, 'teachers', 'Faculty_ID_Number') ? 'yes' : 'no';
+                            $diag['teachers_has_employee_number'] = columnExists($pdo, 'teachers', 'employee_number') ? 'yes' : 'no';
+                            $diag['teachers_has_employee_id'] = columnExists($pdo, 'teachers', 'employee_id') ? 'yes' : 'no';
+                            $diag['attendance_has_faculty_id_number'] = columnExists($pdo, 'teacher_attendance', 'Faculty_ID_Number') ? 'yes' : 'no';
+                            $diag['attendance_has_employee_number'] = columnExists($pdo, 'teacher_attendance', 'employee_number') ? 'yes' : 'no';
+                            $diag['attendance_has_employee_id'] = columnExists($pdo, 'teacher_attendance', 'employee_id') ? 'yes' : 'no';
+                            $diag['resolved_teacher_id_column'] = $teacherIdentifierColumn ?? 'none';
+                            $diag['resolved_attendance_id_column'] = $attendanceIdentifierColumn ?? 'none';
                         } catch (Exception $e) {
                             $diag['schema_check_error'] = $e->getMessage();
                         }
@@ -540,19 +635,32 @@ include 'includes/header_modern.php';
                                     <strong>No teachers found.</strong>
                                     <div style="margin-top:8px;font-size:0.95rem;color:#444;">
                                         <div>Teachers table count: <?php echo htmlspecialchars((string)$diag['teachers_count']); ?></div>
+                                        <div>teachers.Faculty_ID_Number: <?php echo htmlspecialchars($diag['teachers_has_faculty_id_number'] ?? 'unknown'); ?></div>
                                         <div>teachers.employee_number: <?php echo htmlspecialchars($diag['teachers_has_employee_number'] ?? 'unknown'); ?></div>
                                         <div>teachers.employee_id: <?php echo htmlspecialchars($diag['teachers_has_employee_id'] ?? 'unknown'); ?></div>
+                                        <div>teacher_attendance.Faculty_ID_Number: <?php echo htmlspecialchars($diag['attendance_has_faculty_id_number'] ?? 'unknown'); ?></div>
                                         <div>teacher_attendance.employee_number: <?php echo htmlspecialchars($diag['attendance_has_employee_number'] ?? 'unknown'); ?></div>
                                         <div>teacher_attendance.employee_id: <?php echo htmlspecialchars($diag['attendance_has_employee_id'] ?? 'unknown'); ?></div>
+                                        <div>Resolved teachers identifier: <?php echo htmlspecialchars($diag['resolved_teacher_id_column'] ?? 'unknown'); ?></div>
+                                        <div>Resolved attendance identifier: <?php echo htmlspecialchars($diag['resolved_attendance_id_column'] ?? 'unknown'); ?></div>
                                     </div>
-                                    <div style="margin-top:8px;color:#666;font-size:0.9rem;">If this looks wrong, check your database and run the migration in <code>database/add_teacher_employee_number_migration.php</code> or restore a backup.</div>
+                                    <div style="margin-top:8px;color:#666;font-size:0.9rem;">If this looks wrong, verify the teachers identifier column (e.g., <code>Faculty_ID_Number</code>) and ensure teacher attendance uses a matching identifier value.</div>
                                 </div>
                             </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($teachers as $teacher): ?>
                             <?php
-                                $rowDisplayId = $teacher['employee_number'] ?? ($teacher['employee_id'] ?? 'N/A');
+                                $rowDisplayId = 'N/A';
+                                if ($teacherIdentifierColumn !== null && isset($teacher[$teacherIdentifierColumn]) && $teacher[$teacherIdentifierColumn] !== '') {
+                                    $rowDisplayId = $teacher[$teacherIdentifierColumn];
+                                } elseif (isset($teacher['employee_number']) && $teacher['employee_number'] !== '') {
+                                    $rowDisplayId = $teacher['employee_number'];
+                                } elseif (isset($teacher['employee_id']) && $teacher['employee_id'] !== '') {
+                                    $rowDisplayId = $teacher['employee_id'];
+                                } elseif (isset($teacher['Faculty_ID_Number']) && $teacher['Faculty_ID_Number'] !== '') {
+                                    $rowDisplayId = $teacher['Faculty_ID_Number'];
+                                }
                                 $fullName = $teacher['first_name'];
                                 if (!empty($teacher['middle_name'])) {
                                     $fullName .= ' ' . substr($teacher['middle_name'], 0, 1) . '.';
@@ -560,7 +668,7 @@ include 'includes/header_modern.php';
                                 $fullName .= ' ' . $teacher['last_name'];
                             ?>
                             <tr>
-                                <td><strong><?php echo htmlspecialchars($teacher['employee_number'] ?? 'N/A'); ?></strong></td>
+                                <td><strong><?php echo htmlspecialchars((string)$rowDisplayId); ?></strong></td>
                                 
                                 <td>
                                     <?php 
@@ -619,10 +727,14 @@ include 'includes/header_modern.php';
         // Safe display values to avoid undefined index warnings
         $qrPathRel = '../' . ($editTeacher['qr_code'] ?? '');
         $displayId = 'N/A';
-        if (isset($editTeacher['employee_number']) && $editTeacher['employee_number'] !== '') {
+        if ($teacherIdentifierColumn !== null && isset($editTeacher[$teacherIdentifierColumn]) && $editTeacher[$teacherIdentifierColumn] !== '') {
+            $displayId = $editTeacher[$teacherIdentifierColumn];
+        } elseif (isset($editTeacher['employee_number']) && $editTeacher['employee_number'] !== '') {
             $displayId = $editTeacher['employee_number'];
         } elseif (isset($editTeacher['employee_id']) && $editTeacher['employee_id'] !== '') {
             $displayId = $editTeacher['employee_id'];
+        } elseif (isset($editTeacher['Faculty_ID_Number']) && $editTeacher['Faculty_ID_Number'] !== '') {
+            $displayId = $editTeacher['Faculty_ID_Number'];
         }
         $fullName = trim((string)($editTeacher['first_name'] ?? '') . ' ' . (string)($editTeacher['last_name'] ?? ''));
     ?>

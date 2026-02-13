@@ -20,20 +20,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         
         $action = $_POST['action'] ?? '';
         $response = ['success' => false, 'message' => ''];
+        $normalizeSession = function ($raw, $allowBoth = false) {
+            $v = strtolower(trim((string)$raw));
+            if ($v === '') {
+                return null;
+            }
+            if ($allowBoth && strpos($v, 'both') !== false) {
+                return 'both';
+            }
+            if (strpos($v, 'pm') !== false || strpos($v, 'afternoon') !== false) {
+                return 'afternoon';
+            }
+            if (strpos($v, 'am') !== false || strpos($v, 'morning') !== false) {
+                return 'morning';
+            }
+            return null;
+        };
+
+        $teacherIdentifierCandidates = ['Faculty_ID_Number', 'faculty_id_number', 'employee_number', 'employee_id'];
+        $attendanceTeacherIdCandidates = ['employee_number', 'Faculty_ID_Number', 'faculty_id_number', 'employee_id'];
+
+        $resolveTeacherIdentifier = function (array $row, string $fallback = '') use ($teacherIdentifierCandidates): string {
+            foreach ($teacherIdentifierCandidates as $candidate) {
+                if (!empty($row[$candidate])) {
+                    return (string)$row[$candidate];
+                }
+            }
+            return $fallback;
+        };
+
+        $normalizeTeacherAttendanceIdentifier = function (string $rawIdentifier, string $idColumn, array $teacherRow = []): string {
+            $value = trim($rawIdentifier);
+            $isSevenDigitColumn = in_array($idColumn, ['employee_number', 'Faculty_ID_Number', 'faculty_id_number'], true);
+
+            if ($isSevenDigitColumn) {
+                if (preg_match('/^ID(\d+)$/i', $value, $m)) {
+                    $value = $m[1];
+                } elseif (preg_match('/^EMP-?(\d+)$/i', $value, $m)) {
+                    $value = $m[1];
+                }
+
+                $value = preg_replace('/\D+/', '', $value);
+
+                if ($value === '' && !empty($teacherRow['id']) && ctype_digit((string)$teacherRow['id'])) {
+                    $value = (string)$teacherRow['id'];
+                }
+
+                if ($value !== '') {
+                    if (strlen($value) > 7) {
+                        $value = ltrim($value, '0');
+                        if ($value === '') {
+                            $value = '0';
+                        }
+                        if (strlen($value) > 7 && !empty($teacherRow['id']) && ctype_digit((string)$teacherRow['id'])) {
+                            $value = (string)$teacherRow['id'];
+                        } elseif (strlen($value) > 7) {
+                            $value = substr($value, -7);
+                        }
+                    }
+                    $value = str_pad($value, 7, '0', STR_PAD_LEFT);
+                }
+            }
+
+            return $value;
+        };
         
         switch ($action) {
             case 'mark_attendance':
-                $identifier = trim($_POST['lrn'] ?? '');
+                $rawIdentifier = trim($_POST['lrn'] ?? '');
+                $identifier = $rawIdentifier;
+                $forceTeacher = false;
+                if (stripos($identifier, 'TEACHER:') === 0) {
+                    $identifier = trim(substr($identifier, 8));
+                    $forceTeacher = true;
+                }
                 $date = trim($_POST['date'] ?? '');
                 $time = trim($_POST['time'] ?? '');
-                $action_type = $_POST['action_type'] ?? 'time_in';
+                // Single-scan mode: manual entry only records Time In.
+                $action_type = 'time_in';
 
                 if (empty($identifier) || empty($date) || empty($time)) {
                     throw new Exception('All fields are required.');
                 }
 
                 // Student LRN (11-13 digits)
-                if (preg_match('/^\d{11,13}$/', $identifier)) {
+                if (!$forceTeacher && preg_match('/^\d{11,13}$/', $identifier)) {
                     $student_stmt = $pdo->prepare("SELECT lrn, first_name, last_name, class as section FROM students WHERE lrn = ?");
                     $student_stmt->execute([$identifier]);
                     $student = $student_stmt->fetch(PDO::FETCH_ASSOC);
@@ -113,9 +184,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                                     $secStmt->execute([$student_section_name]);
                                     $shiftVal = $secStmt->fetchColumn();
                                     if ($shiftVal) {
-                                        $sv = strtolower(trim($shiftVal));
-                                        if (strpos($sv, 'am') !== false) { $assignedSession = 'morning'; }
-                                        elseif (strpos($sv, 'pm') !== false) { $assignedSession = 'afternoon'; }
+                                        $parsedShift = $normalizeSession($shiftVal, true);
+                                        if ($parsedShift === 'morning' || $parsedShift === 'afternoon') {
+                                            $assignedSession = $parsedShift;
+                                        }
                                     }
                                 }
                             } catch (Exception $e) { /* ignore */ }
@@ -125,11 +197,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
 
                             if ($assignedSession === 'morning') {
                                 $preferred_in = 'morning_time_in';
-                                $preferred_out = 'morning_time_out';
                                 $is_late = ($t > $morning_late);
                             } elseif ($assignedSession === 'afternoon') {
                                 $preferred_in = 'afternoon_time_in';
-                                $preferred_out = 'afternoon_time_out';
                                 $is_late = ($t > $afternoon_late);
                             } else {
                                 // Fallback: determine by time
@@ -139,11 +209,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                                 $afternoon_end = strtotime($schedule['afternoon_end']);
                                 if ($t >= $morning_start && $t <= $morning_end) {
                                     $preferred_in = 'morning_time_in';
-                                    $preferred_out = 'morning_time_out';
                                     $is_late = ($t > $morning_late);
                                 } else {
                                     $preferred_in = 'afternoon_time_in';
-                                    $preferred_out = 'afternoon_time_out';
                                     $is_late = ($t > $afternoon_late);
                                 }
                             }
@@ -154,18 +222,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                             $attendanceCols = $colCheckStmt->fetchAll(PDO::FETCH_COLUMN);
                             $in_col = in_array($preferred_in, $attendanceCols) ? $preferred_in : (in_array('time_in', $attendanceCols) ? 'time_in' : null);
                             if ($in_col === null) { throw new Exception('Attendance table missing expected time_in columns.'); }
+                            $hasLateMorningCol = in_array('is_late_morning', $attendanceCols, true);
+                            $hasLateAfternoonCol = in_array('is_late_afternoon', $attendanceCols, true);
+                            $sessionLateCol = ($preferred_in === 'afternoon_time_in')
+                                ? ($hasLateAfternoonCol ? 'is_late_afternoon' : null)
+                                : ($hasLateMorningCol ? 'is_late_morning' : null);
+                            $lateValue = $is_late ? 1 : 0;
+                            $lateCols = $sessionLateCol ? ", {$sessionLateCol}" : '';
+                            $lateInsertVals = $sessionLateCol ? ", {$lateValue}" : '';
+                            $lateUpdateSet = $sessionLateCol ? ", {$sessionLateCol} = {$lateValue}" : '';
 
                             // Insert using the chosen column; make idempotent
                             if ($in_col === 'time_in') {
                                 $stmt = $pdo->prepare(
-                                    "INSERT INTO attendance (lrn, date, time_in, section, status) 
-                                     VALUES (?, ?, ?, ?, 'time_in')
+                                    "INSERT INTO attendance (lrn, date, time_in, section, status{$lateCols}) 
+                                     VALUES (?, ?, ?, ?, 'time_in'{$lateInsertVals})
                                      ON DUPLICATE KEY UPDATE 
-                                     time_in = VALUES(time_in), status = 'time_in', updated_at = NOW()"
+                                     time_in = VALUES(time_in), status = 'time_in'{$lateUpdateSet}, updated_at = NOW()"
                                 );
                                 $result = $stmt->execute([$identifier, $date, $time, $student['section']]);
                             } else {
-                                $ins_sql = "INSERT INTO attendance (lrn, section, date, {$in_col}, status, created_at) VALUES (?, ?, ?, ?, 'time_in', NOW()) ON DUPLICATE KEY UPDATE {$in_col} = VALUES({$in_col}), status = VALUES(status), updated_at = NOW()";
+                                $ins_sql = "INSERT INTO attendance (lrn, section, date, {$in_col}, status, created_at{$lateCols}) VALUES (?, ?, ?, ?, 'time_in', NOW(){$lateInsertVals}) ON DUPLICATE KEY UPDATE {$in_col} = VALUES({$in_col}), status = VALUES(status){$lateUpdateSet}, updated_at = NOW()";
                                 $stmt = $pdo->prepare($ins_sql);
                                 $result = $stmt->execute([$identifier, $student['section'] ?? '', $date, $time]);
                             }
@@ -179,75 +256,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                             ];
                             logAdminActivity('MANUAL_ATTENDANCE', "Marked time_in for LRN: $identifier on $date at $time");
                         }
-                    } else {
-                        // Determine out column similarly
-                        $current_time = date('H:i:s', strtotime($time));
-                        $t = strtotime($current_time);
-                        // reuse $preferred_out from above if set; otherwise recompute
-                        if (!isset($preferred_out)) {
-                            // quick schedule lookup
-                            $preferred_out = 'time_out';
-                        }
-                        $colCheckStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance'");
-                        $colCheckStmt->execute();
-                        $attendanceCols = $colCheckStmt->fetchAll(PDO::FETCH_COLUMN);
-                        $out_col = in_array($preferred_out, $attendanceCols) ? $preferred_out : (in_array('time_out', $attendanceCols) ? 'time_out' : null);
-                        if ($out_col === null) { throw new Exception('Attendance table missing expected time_out columns.'); }
-
-                        if ($out_col === 'time_out') {
-                            $stmt = $pdo->prepare("UPDATE attendance SET time_out = ?, status = 'time_out', updated_at = NOW() WHERE lrn = ? AND date = ? AND time_in IS NOT NULL");
-                            $stmt->execute([$time, $identifier, $date]);
-                        } else {
-                            // Ensure the related in column exists and is set
-                            $in_col = $in_col ?? (in_array('morning_time_in', $attendanceCols) ? 'morning_time_in' : (in_array('afternoon_time_in', $attendanceCols) ? 'afternoon_time_in' : (in_array('time_in', $attendanceCols) ? 'time_in' : null)));
-                            if ($in_col === null) { throw new Exception('Missing in column to validate Time Out'); }
-                            $upd = $pdo->prepare("UPDATE attendance SET {$out_col} = ?, status = 'time_out', updated_at = NOW() WHERE lrn = ? AND date = ? AND {$in_col} IS NOT NULL");
-                            $upd->execute([$time, $identifier, $date]);
-                            $stmt = $upd;
-                        }
-
-                        if ($stmt->rowCount() > 0) {
-                            $response = [
-                                'success' => true,
-                                'message' => "Time Out marked for {$student_name} at " . date('h:i A', strtotime($time)),
-                                'student_name' => $student_name,
-                                'time' => date('h:i A', strtotime($time))
-                            ];
-                            logAdminActivity('MANUAL_ATTENDANCE', "Marked time_out for LRN: $identifier on $date at $time");
-                        } else {
-                            throw new Exception("No 'Time In' record found for this student on the selected date. Cannot mark Time Out.");
-                        }
                     }
 
-                // Teacher employee number (7 digits) - apply schedule/session logic
-                } elseif (preg_match('/^\d{7}$/', $identifier)) {
-                    // Check which identifier columns exist in `teachers` table to avoid SQL errors
+                // Teacher attendance (Faculty ID / legacy employee ID formats)
+                } elseif (
+                    $forceTeacher ||
+                    preg_match('/^\d{7}$/', $identifier) ||
+                    preg_match('/^EMP-?\d+$/i', $identifier) ||
+                    preg_match('/^ID\d+$/i', $identifier)
+                ) {
+                    // Resolve searchable identifier columns in `teachers`
                     $colCheckStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'teachers'");
                     $colCheckStmt->execute();
                     $teacherCols = $colCheckStmt->fetchAll(PDO::FETCH_COLUMN);
 
-                    $hasEmpNum = in_array('employee_number', $teacherCols);
-                    $hasEmpId = in_array('employee_id', $teacherCols);
-
-                    if ($hasEmpNum && $hasEmpId) {
-                        $teacher_stmt = $pdo->prepare("SELECT id, employee_number, employee_id, first_name, last_name, department FROM teachers WHERE employee_number = ? OR employee_id = ? LIMIT 1");
-                        $teacher_stmt->execute([$identifier, $identifier]);
-                    } elseif ($hasEmpNum) {
-                        $teacher_stmt = $pdo->prepare("SELECT id, employee_number, first_name, last_name, department FROM teachers WHERE employee_number = ? LIMIT 1");
-                        $teacher_stmt->execute([$identifier]);
-                    } elseif ($hasEmpId) {
-                        $teacher_stmt = $pdo->prepare("SELECT id, employee_id, first_name, last_name, department FROM teachers WHERE employee_id = ? LIMIT 1");
-                        $teacher_stmt->execute([$identifier]);
-                    } else {
+                    $teacherSearchCols = [];
+                    foreach ($teacherIdentifierCandidates as $candidate) {
+                        if (in_array($candidate, $teacherCols, true)) {
+                            $teacherSearchCols[] = $candidate;
+                        }
+                    }
+                    if (empty($teacherSearchCols)) {
                         throw new Exception('Teachers table missing identifier columns. Run migrations.');
                     }
 
-                    $teacher = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
-
-                    if (!$teacher) {
-                        throw new Exception('Teacher with this Employee Number was not found.');
+                    $teacherCode = trim((string)$identifier);
+                    $teacherCodesToTry = [];
+                    if ($teacherCode !== '') {
+                        $teacherCodesToTry[] = $teacherCode;
                     }
 
+                    $teacherIdCandidate = null;
+                    if (preg_match('/^ID(\d+)$/i', $teacherCode, $m)) {
+                        $teacherCodesToTry[] = $m[1];
+                        $teacherIdCandidate = $m[1];
+                    }
+                    if (preg_match('/^EMP-?(\d+)$/i', $teacherCode, $m)) {
+                        $digits = ltrim($m[1], '0');
+                        $digits = ($digits === '') ? '0' : $digits;
+                        $teacherCodesToTry[] = $digits;
+                        $teacherCodesToTry[] = 'EMP-' . str_pad($m[1], 6, '0', STR_PAD_LEFT);
+                        if ($teacherIdCandidate === null) {
+                            $teacherIdCandidate = $digits;
+                        }
+                    }
+                    if (ctype_digit($teacherCode)) {
+                        $teacherCodesToTry[] = 'EMP-' . str_pad($teacherCode, 6, '0', STR_PAD_LEFT);
+                        if ($teacherIdCandidate === null) {
+                            $teacherIdCandidate = ltrim($teacherCode, '0');
+                            $teacherIdCandidate = ($teacherIdCandidate === '') ? '0' : $teacherIdCandidate;
+                        }
+                    }
+
+                    $teacherCodesToTry = array_values(array_unique(array_filter($teacherCodesToTry, 'strlen')));
+
+                    $teacher = null;
+                    $clauses = [];
+                    foreach ($teacherSearchCols as $colName) {
+                        $clauses[] = "`{$colName}` = :code";
+                    }
+                    if ($teacherIdCandidate !== null) {
+                        $clauses[] = "id = :tid";
+                    }
+                    $teacherQuery = "SELECT * FROM teachers WHERE " . implode(' OR ', $clauses) . " LIMIT 1";
+
+                    foreach ($teacherCodesToTry as $codeCandidate) {
+                        $teacher_stmt = $pdo->prepare($teacherQuery);
+                        $teacher_stmt->bindValue(':code', $codeCandidate, PDO::PARAM_STR);
+                        if ($teacherIdCandidate !== null) {
+                            $teacher_stmt->bindValue(':tid', (int)$teacherIdCandidate, PDO::PARAM_INT);
+                        }
+                        $teacher_stmt->execute();
+                        $row = $teacher_stmt->fetch(PDO::FETCH_ASSOC);
+                        if ($row) {
+                            $teacher = $row;
+                            break;
+                        }
+                    }
+
+                    if (!$teacher) {
+                        throw new Exception('Teacher with this Faculty ID Number was not found.');
+                    }
+
+                    $teacherIdentifierValue = $resolveTeacherIdentifier($teacher, $identifier);
                     $teacher_name = trim($teacher['first_name'] . ' ' . $teacher['last_name']);
 
                     // Normalize time
@@ -296,36 +387,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                     // Respect teacher-assigned shift when present
                     $assignedSession = null;
                     if (isset($teacher['shift']) && $teacher['shift'] !== '') {
-                        $sv = strtolower(trim($teacher['shift']));
-                        if (strpos($sv, 'am') !== false) { $assignedSession = 'morning'; }
-                        elseif (strpos($sv, 'pm') !== false) { $assignedSession = 'afternoon'; }
+                        $parsedShift = $normalizeSession($teacher['shift'], true);
+                        if ($parsedShift === 'morning' || $parsedShift === 'afternoon') {
+                            $assignedSession = $parsedShift;
+                        }
                     }
 
                     if ($assignedSession === 'morning') {
                         $session = 'morning';
                         $preferred_in = 'morning_time_in';
-                        $preferred_out = 'morning_time_out';
                         $is_late = ($t > $morning_late);
                     } elseif ($assignedSession === 'afternoon') {
                         $session = 'afternoon';
                         $preferred_in = 'afternoon_time_in';
-                        $preferred_out = 'afternoon_time_out';
                         $is_late = ($t > $afternoon_late);
                     } else {
                         if ($t >= $morning_start && $t <= $morning_end) {
                             $session = 'morning';
                             $preferred_in = 'morning_time_in';
-                            $preferred_out = 'morning_time_out';
                             $is_late = ($t > $morning_late);
                         } elseif ($t >= $afternoon_start && $t <= $afternoon_end) {
                             $session = 'afternoon';
                             $preferred_in = 'afternoon_time_in';
-                            $preferred_out = 'afternoon_time_out';
                             $is_late = ($t > $afternoon_late);
                         } else {
                             $session = 'morning';
                             $preferred_in = 'morning_time_in';
-                            $preferred_out = 'morning_time_out';
                             $is_late = ($t > $morning_late);
                         }
                     }
@@ -335,63 +422,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                     $colCheckStmt->execute();
                     $attendanceCols = $colCheckStmt->fetchAll(PDO::FETCH_COLUMN);
 
-                    $idColumn = in_array('employee_number', $attendanceCols) ? 'employee_number' : (in_array('employee_id', $attendanceCols) ? 'employee_id' : null);
+                    $idColumn = null;
+                    foreach ($attendanceTeacherIdCandidates as $candidate) {
+                        if (in_array($candidate, $attendanceCols, true)) {
+                            $idColumn = $candidate;
+                            break;
+                        }
+                    }
                     if ($idColumn === null) {
                         throw new Exception('teacher_attendance table is missing identifier columns. Run migrations.');
                     }
+                    $idColumnSql = "`{$idColumn}`";
+
+                    $attendanceIdentifier = !empty($teacher[$idColumn])
+                        ? (string)$teacher[$idColumn]
+                        : '';
+                    if ($attendanceIdentifier === '') {
+                        $attendanceIdentifier = $teacherIdentifierValue;
+                    }
+                    if ($attendanceIdentifier === '') {
+                        $attendanceIdentifier = $identifier;
+                    }
+                    $attendanceIdentifier = $normalizeTeacherAttendanceIdentifier($attendanceIdentifier, $idColumn, $teacher);
+                    if ($attendanceIdentifier === '') {
+                        throw new Exception('Teacher identifier is missing. Please update Faculty ID Number in teacher records.');
+                    }
 
                     $in_col = in_array($preferred_in, $attendanceCols) ? $preferred_in : (in_array('time_in', $attendanceCols) ? 'time_in' : null);
-                    $out_col = in_array($preferred_out, $attendanceCols) ? $preferred_out : (in_array('time_out', $attendanceCols) ? 'time_out' : null);
-                    if ($in_col === null || $out_col === null) {
-                        throw new Exception('Attendance table missing expected time columns.');
+                    if ($in_col === null) {
+                        throw new Exception('Attendance table missing expected time_in columns.');
                     }
+                    $hasLateMorningCol = in_array('is_late_morning', $attendanceCols, true);
+                    $hasLateAfternoonCol = in_array('is_late_afternoon', $attendanceCols, true);
+                    $sessionLateCol = ($preferred_in === 'afternoon_time_in')
+                        ? ($hasLateAfternoonCol ? 'is_late_afternoon' : null)
+                        : ($hasLateMorningCol ? 'is_late_morning' : null);
+                    $lateValue = $is_late ? 1 : 0;
+                    $lateCols = $sessionLateCol ? ", {$sessionLateCol}" : '';
+                    $lateInsertVals = $sessionLateCol ? ", {$lateValue}" : '';
+                    $lateUpdateSet = $sessionLateCol ? ", {$sessionLateCol} = {$lateValue}" : '';
 
                     $pdo->beginTransaction();
                     try {
-                        if ($idColumn === 'employee_number') {
-                            $check_query = "SELECT * FROM teacher_attendance WHERE employee_number = :code AND date = :date FOR UPDATE";
-                        } else {
-                            $check_query = "SELECT * FROM teacher_attendance WHERE employee_id = :code AND date = :date FOR UPDATE";
-                        }
+                        $check_query = "SELECT * FROM teacher_attendance WHERE {$idColumnSql} = :code AND date = :date FOR UPDATE";
                         $check_stmt = $pdo->prepare($check_query);
-                        $check_stmt->execute([':code' => $identifier, ':date' => $date]);
+                        $check_stmt->execute([':code' => $attendanceIdentifier, ':date' => $date]);
                         $existing = $check_stmt->fetch(PDO::FETCH_ASSOC);
 
                         if (!$existing) {
                             $status = $is_late ? 'late' : 'present';
-                            if ($idColumn === 'employee_number') {
-                                $ins = $pdo->prepare("INSERT INTO teacher_attendance (employee_number, department, date, {$in_col}, status, created_at) VALUES (?, ?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE {$in_col} = VALUES({$in_col}), status = VALUES(status), updated_at = NOW()");
-                                $ins->execute([$teacher['employee_number'] ?? $identifier, $teacher['department'] ?? '', $date, $current_time, $status]);
-                            } else {
-                                $ins = $pdo->prepare("INSERT INTO teacher_attendance (employee_id, department, date, {$in_col}, status, created_at) VALUES (?, ?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE {$in_col} = VALUES({$in_col}), status = VALUES(status), updated_at = NOW()");
-                                $ins->execute([$teacher['employee_id'] ?? $identifier, $teacher['department'] ?? '', $date, $current_time, $status]);
-                            }
+                            $ins = $pdo->prepare("INSERT INTO teacher_attendance ({$idColumnSql}, department, date, {$in_col}, status, created_at{$lateCols}) VALUES (?, ?, ?, ?, ?, NOW(){$lateInsertVals}) ON DUPLICATE KEY UPDATE {$in_col} = VALUES({$in_col}), status = VALUES(status){$lateUpdateSet}, updated_at = NOW()");
+                            $ins->execute([$attendanceIdentifier, $teacher['department'] ?? '', $date, $current_time, $status]);
+
                             $pdo->commit();
                             $response = ['success' => true, 'message' => "Time In marked for Teacher {$teacher_name} at " . date('h:i A', strtotime($current_time)), 'teacher_name' => $teacher_name, 'time' => date('h:i A', strtotime($current_time))];
-                            logAdminActivity('MANUAL_ATTENDANCE', "Marked teacher time_in for: $identifier ({$teacher_name}) on $date at $current_time");
+                            logAdminActivity('MANUAL_ATTENDANCE', "Marked teacher time_in for: {$attendanceIdentifier} ({$teacher_name}) on $date at $current_time");
 
                         } else {
                             $existing_in = $existing[$in_col] ?? null;
-                            $existing_out = $existing[$out_col] ?? null;
 
                             if ($existing_in === null) {
                                 $status = $is_late ? 'late' : 'present';
-                                $upd = $pdo->prepare("UPDATE teacher_attendance SET {$in_col} = ?, status = ?, updated_at = NOW() WHERE id = ?");
+                                $lateSet = $sessionLateCol ? ", {$sessionLateCol} = {$lateValue}" : '';
+                                $upd = $pdo->prepare("UPDATE teacher_attendance SET {$in_col} = ?, status = ?{$lateSet}, updated_at = NOW() WHERE id = ?");
                                 $upd->execute([$current_time, $status, $existing['id']]);
                                 $pdo->commit();
                                 $response = ['success' => true, 'message' => "Time In recorded for Teacher {$teacher_name} at " . date('h:i A', strtotime($current_time)), 'teacher_name' => $teacher_name, 'time' => date('h:i A', strtotime($current_time))];
-                                logAdminActivity('MANUAL_ATTENDANCE', "Updated teacher time_in for: $identifier ({$teacher_name}) on $date at $current_time");
-
-                            } elseif ($existing_in !== null && $existing_out === null) {
-                                $upd = $pdo->prepare("UPDATE teacher_attendance SET {$out_col} = ?, status = 'time_out', updated_at = NOW() WHERE id = ?");
-                                $upd->execute([$current_time, $existing['id']]);
-                                $pdo->commit();
-                                $response = ['success' => true, 'message' => "Time Out recorded for Teacher {$teacher_name} at " . date('h:i A', strtotime($current_time)), 'teacher_name' => $teacher_name, 'time' => date('h:i A', strtotime($current_time))];
-                                logAdminActivity('MANUAL_ATTENDANCE', "Marked teacher time_out for: $identifier ({$teacher_name}) on $date at $current_time");
+                                logAdminActivity('MANUAL_ATTENDANCE', "Updated teacher time_in for: {$attendanceIdentifier} ({$teacher_name}) on $date at $current_time");
 
                             } else {
                                 $pdo->commit();
-                                throw new Exception('Attendance already completed for this teacher today.');
+                                $existingDisplay = date('h:i A', strtotime($existing_in));
+                                $response = [
+                                    'success' => true,
+                                    'message' => "Time In already recorded for Teacher {$teacher_name} at {$existingDisplay}.",
+                                    'teacher_name' => $teacher_name,
+                                    'time' => $existingDisplay
+                                ];
                             }
                         }
                     } catch (Exception $e) {
@@ -400,7 +507,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                     }
 
                 } else {
-                    throw new Exception('Invalid identifier format. Enter 11-13 digit LRN or 7-digit Employee Number.');
+                    throw new Exception('Invalid identifier format. Enter 11-13 digit LRN or 7-digit Faculty ID Number.');
                 }
                 break;
                 
@@ -481,44 +588,87 @@ $today = date('Y-m-d');
 $currentTime = date('H:i');
 
 // Get students for quick selection
+$students = [];
+$todaysSchedule = [];
+$recentAttendance = [];
+
 try {
     $stmt = $pdo->prepare("
-        SELECT lrn, first_name, last_name, class 
-        FROM students 
+        SELECT lrn, first_name, last_name, class
+        FROM students
         ORDER BY class, last_name, first_name
     ");
     $stmt->execute();
     $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Get current day's schedule for time suggestions
-    $currentDay = date('l'); // Full day name (Monday, Tuesday, etc.)
+} catch (Exception $e) {
+    error_log("Manual attendance students query error: " . $e->getMessage());
+}
+
+// Get current day's schedule for time suggestions (legacy table, optional)
+try {
+    $scheduleTbl = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'schedule'");
+    $scheduleTbl->execute();
+    $hasScheduleTable = ((int)$scheduleTbl->fetchColumn()) > 0;
+    if ($hasScheduleTable) {
+        $currentDay = date('l'); // Full day name (Monday, Tuesday, etc.)
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT start_time, end_time, subject, class, period_number
+            FROM schedule
+            WHERE day_of_week = ?
+            ORDER BY start_time
+        ");
+        $stmt->execute([$currentDay]);
+        $todaysSchedule = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Exception $e) {
+    error_log("Manual attendance schedule query warning: " . $e->getMessage());
+}
+
+// Get recent attendance for reference (schema-aware)
+try {
+    $attendanceColsStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance'");
+    $attendanceColsStmt->execute();
+    $attendanceCols = $attendanceColsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $studentColsStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students'");
+    $studentColsStmt->execute();
+    $studentCols = $studentColsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+    if (in_array('section', $studentCols, true) && in_array('class', $studentCols, true)) {
+        $classExpr = 'COALESCE(s.section, s.class)';
+    } elseif (in_array('section', $studentCols, true)) {
+        $classExpr = 's.section';
+    } elseif (in_array('class', $studentCols, true)) {
+        $classExpr = 's.class';
+    } else {
+        $classExpr = "''";
+    }
+
+    // Single-scan mode: prefer Time In columns for display.
+    $timeCandidates = ['afternoon_time_in', 'morning_time_in', 'time_in', 'time'];
+    $timeParts = [];
+    foreach ($timeCandidates as $tc) {
+        if (in_array($tc, $attendanceCols, true)) {
+            $timeParts[] = "a.{$tc}";
+        }
+    }
+    $timeExpr = !empty($timeParts) ? ('COALESCE(' . implode(', ', $timeParts) . ')') : 'NULL';
+    $subjectExpr = in_array('subject', $attendanceCols, true) ? 'a.subject' : "''";
+    $createdExpr = in_array('created_at', $attendanceCols, true) ? 'a.created_at' : 'NULL';
+    $orderExpr = in_array('created_at', $attendanceCols, true) ? 'a.created_at DESC' : 'a.date DESC';
+
     $stmt = $pdo->prepare("
-        SELECT DISTINCT start_time, end_time, subject, class, period_number
-        FROM schedule 
-        WHERE day_of_week = ? 
-        ORDER BY start_time
-    ");
-    $stmt->execute([$currentDay]);
-    $todaysSchedule = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Get recent attendance for reference
-    $stmt = $pdo->prepare("
-        SELECT a.lrn, s.first_name, s.last_name, s.class, a.subject, a.status, a.time, a.date,
-               a.created_at
-        FROM attendance a 
-        JOIN students s ON a.lrn = s.lrn 
+        SELECT a.lrn, s.first_name, s.last_name, {$classExpr} AS class, {$subjectExpr} AS subject, a.status, {$timeExpr} AS time, a.date, {$createdExpr} AS created_at
+        FROM attendance a
+        JOIN students s ON a.lrn = s.lrn
         WHERE a.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAYS)
-        ORDER BY a.created_at DESC 
+        ORDER BY {$orderExpr}
         LIMIT 20
     ");
     $stmt->execute();
     $recentAttendance = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
 } catch (Exception $e) {
-    error_log("Manual attendance query error: " . $e->getMessage());
-    $students = [];
-    $todaysSchedule = [];
-    $recentAttendance = [];
+    error_log("Manual attendance recent attendance query warning: " . $e->getMessage());
 }
 
 // Include the modern admin header
@@ -550,7 +700,7 @@ include 'includes/header_modern.php';
                 <h1 class="page-title-enhanced"><?php echo $pageTitle; ?></h1>
                 <p class="page-subtitle-enhanced">
                     <i class="fas fa-clock"></i>
-                    <span>Mark time in/out manually or scan QR codes for fast check-in</span>
+                    <span>Record Time In manually or scan QR codes for fast check-in</span>
                 </p>
             </div>
         </div>
@@ -575,7 +725,7 @@ include 'includes/header_modern.php';
     <div class="alert-content">
         <strong>Manual Attendance System</strong>
         <p style="margin: var(--space-1) 0 0; line-height: 1.6;">
-            Use this feature to mark Time In and Time Out for students who may have forgotten their QR codes or need retroactive attendance entries. The system now supports separate Time In and Time Out tracking similar to the main scanner.
+            Use this feature to record single-scan attendance (Time In only) for students or teachers who need manual entries.
         </p>
     </div>
 </div>
@@ -704,7 +854,7 @@ include 'includes/header_modern.php';
                         <h3 class="card-title-modern">Single Entry</h3>
                         <p class="card-subtitle-modern">
                             <i class="fas fa-edit"></i>
-                            <span>Mark time in/out for individual students</span>
+                            <span>Mark Time In for one student or teacher</span>
                         </p>
                     </div>
                 </div>
@@ -719,13 +869,6 @@ include 'includes/header_modern.php';
                         <span class="action-type-label">Time In</span>
                         <span class="action-type-desc">Mark arrival</span>
                     </button>
-                    <button type="button" class="action-type-btn" data-action-type="time_out">
-                        <div class="action-type-icon">
-                            <i class="fas fa-sign-out-alt"></i>
-                        </div>
-                        <span class="action-type-label">Time Out</span>
-                        <span class="action-type-desc">Mark departure</span>
-                    </button>
                 </div>
                 
                 <form id="single-attendance-form">
@@ -735,18 +878,18 @@ include 'includes/header_modern.php';
                     
                     <div class="form-group-modern">
                               <label for="lrn" class="form-label-modern">
-                                <i class="fas fa-id-card"></i>
-                                <span>LRN or Teacher Employee Number</span>
+                               <i class="fas fa-id-card"></i>
+                                <span>LRN or Teacher Faculty ID Number</span>
                                 <span class="required">*</span>
                                </label>
                                <input type="text" 
                                    id="lrn" 
                                    name="lrn" 
                                    class="form-input-modern" 
-                                   placeholder="Enter 11-13 digit LRN or 7-digit employee number" 
-                                   pattern="([0-9]{11,13}|[0-9]{7})"
+                                   placeholder="Enter 11-13 digit LRN or 7-digit faculty ID number" 
+                                   pattern="([0-9]{11,13}|[0-9]{7}|TEACHER:[A-Za-z0-9-]+|EMP-?[0-9]+)"
                                    required>
-                               <span class="form-hint">Enter the student's LRN (11-13 digits) or teacher's 7-digit Employee Number</span>
+                               <span class="form-hint">Enter the student's LRN (11-13 digits) or teacher's 7-digit Faculty ID Number</span>
                     </div>
                     
                     <div class="form-grid-modern">
@@ -798,7 +941,7 @@ include 'includes/header_modern.php';
                         <h3 class="card-title-modern">Bulk Entry</h3>
                         <p class="card-subtitle-modern">
                             <i class="fas fa-list"></i>
-                            <span>Mark time in/out for multiple students at once</span>
+                            <span>Mark Time In for multiple students at once</span>
                         </p>
                     </div>
                 </div>
@@ -812,13 +955,6 @@ include 'includes/header_modern.php';
                         </div>
                         <span class="action-type-label">Bulk Time In</span>
                         <span class="action-type-desc">Mark multiple arrivals</span>
-                    </button>
-                    <button type="button" class="action-type-btn" data-bulk-action-type="time_out">
-                        <div class="action-type-icon">
-                            <i class="fas fa-sign-out-alt"></i>
-                        </div>
-                        <span class="action-type-label">Bulk Time Out</span>
-                        <span class="action-type-desc">Mark multiple departures</span>
                     </button>
                 </div>
                 
@@ -1008,49 +1144,15 @@ include 'includes/header_modern.php';
         document.getElementById(tabName + '-tab').classList.add('active');
     });
     
-    /* ===== ACTION TYPE SELECTION (Single Entry) ===== */
-    document.querySelectorAll('.action-type-btn[data-action-type]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            // Remove active from all
-            document.querySelectorAll('.action-type-btn[data-action-type]').forEach(b => b.classList.remove('active'));
-            
-            // Add active to clicked
-            this.classList.add('active');
-            
-            // Update hidden input and button text
-            const actionType = this.dataset.actionType;
-            document.getElementById('action_type').value = actionType;
-            
-            const submitBtnText = document.getElementById('submit-btn-text');
-            if (actionType === 'time_in') {
-                submitBtnText.innerHTML = '<i class="fas fa-sign-in-alt"></i> Mark Time In';
-            } else {
-                submitBtnText.innerHTML = '<i class="fas fa-sign-out-alt"></i> Mark Time Out';
-            }
-        });
-    });
-    
-    /* ===== ACTION TYPE SELECTION (Bulk Entry) ===== */
-    document.querySelectorAll('.action-type-btn[data-bulk-action-type]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            // Remove active from all
-            document.querySelectorAll('.action-type-btn[data-bulk-action-type]').forEach(b => b.classList.remove('active'));
-            
-            // Add active to clicked
-            this.classList.add('active');
-            
-            // Update hidden input and button text
-            const actionType = this.dataset.bulkActionType;
-            document.getElementById('bulk_action_type').value = actionType;
-            
-            const submitBtnText = document.getElementById('bulk-submit-btn-text');
-            if (actionType === 'time_in') {
-                submitBtnText.textContent = 'Mark Bulk Time In';
-            } else {
-                submitBtnText.textContent = 'Mark Bulk Time Out';
-            }
-        });
-    });
+    /* ===== SINGLE-SCAN ACTION DEFAULTS ===== */
+    const singleActionInput = document.getElementById('action_type');
+    if (singleActionInput) {
+        singleActionInput.value = 'time_in';
+    }
+    const bulkActionInput = document.getElementById('bulk_action_type');
+    if (bulkActionInput) {
+        bulkActionInput.value = 'time_in';
+    }
     
     /* ===== QR SCANNER FUNCTIONS ===== */
     function updateScannerStats() {
@@ -1248,14 +1350,14 @@ include 'includes/header_modern.php';
         updateScannerStatus(`Processing scan #${scanCount}...`, 'scanning');
 
         try {
-            const lrn = qrData.split('|')[0].trim();
-            console.log('📤 Sending attendance for LRN:', lrn);
+            const identifier = qrData.split('|')[0].trim();
+            console.log('📤 Sending attendance for identifier:', identifier);
 
             const startTime = Date.now();
             const response = await fetch('../api/mark_attendance.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `lrn=${encodeURIComponent(lrn)}`
+                body: `lrn=${encodeURIComponent(identifier)}`
             });
 
             if (!response.ok) {
@@ -1331,12 +1433,15 @@ include 'includes/header_modern.php';
         container.style.animation = 'fadeIn 0.3s ease';
         
         if (success) {
+            const userLabel = result.user_type === 'teacher' ? 'Teacher' : 'Student';
+            const identifierLabel = result.user_type === 'teacher' ? 'Faculty ID Number' : 'LRN';
+            const identifierValue = result.identifier || result.lrn || 'N/A';
             resultDiv.className = 'scan-result scan-result-success';
             resultDiv.innerHTML = `
                 <h4><i class="fas fa-check-circle"></i> Attendance Marked Successfully</h4>
                 <div class="scan-result-details">
-                    <p><strong>Student:</strong> <span>${result.student_name || 'Unknown'}</span></p>
-                    <p><strong>LRN:</strong> <span>${result.lrn || 'N/A'}</span></p>
+                    <p><strong>${userLabel}:</strong> <span>${result.student_name || 'Unknown'}</span></p>
+                    <p><strong>${identifierLabel}:</strong> <span>${identifierValue}</span></p>
                     <p><strong>Status:</strong> <span class="status-badge status-${result.status}">${result.status}</span></p>
                     <p><strong>Time:</strong> <span>${result.time || new Date().toLocaleTimeString()}</span></p>
                 </div>
@@ -1542,7 +1647,7 @@ include 'includes/header_modern.php';
         const lrnField = document.getElementById('lrn');
         if (lrnField) {
             lrnField.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && this.value.length >= 11) {
+                if (e.key === 'Enter' && this.value.trim().length >= 7) {
                     e.preventDefault();
                     document.getElementById('single-attendance-form').requestSubmit();
                 }

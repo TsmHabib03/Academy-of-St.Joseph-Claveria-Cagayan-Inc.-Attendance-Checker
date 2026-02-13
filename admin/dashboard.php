@@ -38,10 +38,36 @@ function getDashboardData($pdo) {
         $todayStats = $stmt->fetch(PDO::FETCH_ASSOC);
         $data['presentToday'] = (int)$todayStats['present'];
 
-        // Teachers present today (count distinct teacher identifiers)
-        $stmt = $pdo->prepare("SELECT COUNT(DISTINCT COALESCE(employee_number, employee_id)) as present_teachers FROM teacher_attendance WHERE date = CURDATE() AND (morning_time_in IS NOT NULL OR afternoon_time_in IS NOT NULL OR time_in IS NOT NULL)");
-        $stmt->execute();
-        $data['presentTeachers'] = (int)$stmt->fetchColumn();
+        // Teachers present today (count distinct teacher identifiers; schema-aware)
+        $data['presentTeachers'] = 0;
+        try {
+            $teacherColsStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'teacher_attendance'");
+            $teacherColsStmt->execute();
+            $teacherCols = $teacherColsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            $teacherIdParts = [];
+            foreach (['Faculty_ID_Number', 'faculty_id_number', 'employee_number', 'employee_id'] as $idCol) {
+                if (in_array($idCol, $teacherCols, true)) {
+                    $teacherIdParts[] = $idCol;
+                }
+            }
+
+            $teacherTimeWhere = [];
+            foreach (['morning_time_in', 'afternoon_time_in', 'time_in'] as $timeCol) {
+                if (in_array($timeCol, $teacherCols, true)) {
+                    $teacherTimeWhere[] = "{$timeCol} IS NOT NULL";
+                }
+            }
+
+            if (!empty($teacherIdParts) && !empty($teacherTimeWhere)) {
+                $teacherIdExpr = count($teacherIdParts) > 1 ? ('COALESCE(' . implode(', ', $teacherIdParts) . ')') : $teacherIdParts[0];
+                $stmt = $pdo->prepare("SELECT COUNT(DISTINCT {$teacherIdExpr}) as present_teachers FROM teacher_attendance WHERE date = CURDATE() AND (" . implode(' OR ', $teacherTimeWhere) . ")");
+                $stmt->execute();
+                $data['presentTeachers'] = (int)$stmt->fetchColumn();
+            }
+        } catch (Exception $e) {
+            $data['presentTeachers'] = 0;
+        }
 
         // Total teachers (active if column exists)
         try {
@@ -62,6 +88,33 @@ function getDashboardData($pdo) {
         $data['attendanceRate'] = $data['totalStudents'] > 0 
             ? round(($data['presentToday'] / $data['totalStudents']) * 100, 1) 
             : 0;
+
+        // Attendance schema helpers (single-scan friendly)
+        $attendanceColsStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance'");
+        $attendanceColsStmt->execute();
+        $attendanceCols = $attendanceColsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $timeInParts = [];
+        foreach (['morning_time_in', 'afternoon_time_in', 'time_in'] as $candidate) {
+            if (in_array($candidate, $attendanceCols, true)) {
+                $timeInParts[] = "a.{$candidate}";
+            }
+        }
+        $timeInExpr = !empty($timeInParts) ? ('COALESCE(' . implode(', ', $timeInParts) . ')') : 'NULL';
+
+        $lateWhereParts = [];
+        if (in_array('is_late_morning', $attendanceCols, true)) {
+            $lateWhereParts[] = 'a.is_late_morning = 1';
+        }
+        if (in_array('is_late_afternoon', $attendanceCols, true)) {
+            $lateWhereParts[] = 'a.is_late_afternoon = 1';
+        }
+        if (in_array('status', $attendanceCols, true)) {
+            $lateWhereParts[] = "a.status = 'late'";
+        }
+        $lateWhereExpr = !empty($lateWhereParts) ? '(' . implode(' OR ', $lateWhereParts) . ')' : '0';
+        $statusSourceExpr = in_array('status', $attendanceCols, true) ? "COALESCE(NULLIF(a.status, ''), 'present')" : "'present'";
+        $recentOrderExpr = in_array('created_at', $attendanceCols, true) ? 'a.created_at DESC' : 'a.date DESC';
         
         // 2. WEEKLY ATTENDANCE TREND (Last 7 days - Present vs Absent)
         $stmt = $pdo->prepare("
@@ -101,7 +154,7 @@ function getDashboardData($pdo) {
         $stmt->execute();
         $data['sectionAttendance'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // 4. RECENT ACTIVITY (Last 10 records with time_out info)
+        // 4. RECENT ACTIVITY (Last 10 scans)
         $stmt = $pdo->prepare("
             SELECT 
                 a.id,
@@ -109,25 +162,24 @@ function getDashboardData($pdo) {
                 s.first_name,
                 s.last_name,
                 COALESCE(s.section, 'N/A') as section,
-                COALESCE(a.morning_time_in, a.afternoon_time_in, a.time_in) AS time_in,
-                COALESCE(a.morning_time_out, a.afternoon_time_out, a.time_out) AS time_out,
+                {$timeInExpr} AS time_in,
                 a.date,
                 CASE 
-                    WHEN a.time_out IS NULL AND a.date < CURDATE() THEN 'incomplete'
-                    WHEN a.time_out IS NOT NULL THEN 'complete'
-                    ELSE 'present'
+                    WHEN {$lateWhereExpr} THEN 'late'
+                    WHEN {$timeInExpr} IS NOT NULL THEN 'present'
+                    ELSE {$statusSourceExpr}
                 END as status,
-                a.created_at
+                " . (in_array('created_at', $attendanceCols, true) ? 'a.created_at' : 'NULL') . " AS created_at
             FROM attendance a
             JOIN students s ON a.lrn = s.lrn
             WHERE 1=1 " . str_replace('class', 's.class', $exclusionClause) . "
-            ORDER BY a.created_at DESC
+            ORDER BY {$recentOrderExpr}
             LIMIT 10
         ");
         $stmt->execute();
         $data['recentActivity'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // 5. NEEDS ATTENTION (Incomplete attendance records)
+        // 5. NEEDS ATTENTION (Recent late arrivals)
         $stmt = $pdo->prepare("
             SELECT 
                 a.id,
@@ -136,12 +188,12 @@ function getDashboardData($pdo) {
                 s.last_name,
                 COALESCE(s.section, 'N/A') as section,
                 a.date,
-                COALESCE(a.morning_time_in, a.afternoon_time_in, a.time_in) AS time_in,
+                {$timeInExpr} AS time_in,
                 DATEDIFF(CURDATE(), a.date) as days_ago
             FROM attendance a
             JOIN students s ON a.lrn = s.lrn
-            WHERE a.time_out IS NULL 
-            AND a.date < CURDATE()
+            WHERE {$lateWhereExpr}
+            AND {$timeInExpr} IS NOT NULL
             " . str_replace('class', 's.class', $exclusionClause) . "
             ORDER BY a.date DESC
             LIMIT 15
@@ -331,6 +383,16 @@ include 'includes/header_modern.php';
             <div class="card-body" style="padding: 0;">
                 <?php if (!empty($recentAttendance)): ?>
                     <?php foreach ($recentAttendance as $record): ?>
+                        <?php
+                            $recordStatus = strtolower((string)($record['status'] ?? 'present'));
+                            if ($recordStatus === 'time_in' || $recordStatus === 'time_out' || $recordStatus === '') {
+                                $recordStatus = 'present';
+                            }
+                            $badgeClass = $recordStatus === 'late'
+                                ? 'warning'
+                                : ($recordStatus === 'absent' ? 'error' : 'primary');
+                            $badgeText = ucwords(str_replace('_', ' ', $recordStatus));
+                        ?>
                         <div class="recent-item">
                             <div class="recent-student-info">
                                 <div class="recent-avatar">
@@ -338,11 +400,11 @@ include 'includes/header_modern.php';
                                 </div>
                                 <div class="recent-details">
                                     <h4><?php echo sanitizeOutput($record['first_name'] . ' ' . $record['last_name']); ?></h4>
-                                    <p><?php echo sanitizeOutput($record['section']); ?> • In: <?php echo date('g:i A', strtotime($record['time_in'])); ?><?php echo $record['time_out'] ? ' • Out: ' . date('g:i A', strtotime($record['time_out'])) : ''; ?></p>
+                                    <p><?php echo sanitizeOutput($record['section']); ?> • In: <?php echo $record['time_in'] ? date('g:i A', strtotime($record['time_in'])) : 'N/A'; ?></p>
                                 </div>
                             </div>
-                            <span class="badge badge-<?php echo $record['status'] === 'incomplete' ? 'warning' : ($record['status'] === 'complete' ? 'success' : 'primary'); ?>">
-                                <?php echo $record['status'] === 'complete' ? 'Complete' : ($record['status'] === 'incomplete' ? 'Incomplete' : 'Present'); ?>
+                            <span class="badge badge-<?php echo $badgeClass; ?>">
+                                <?php echo sanitizeOutput($badgeText); ?>
                             </span>
                         </div>
                     <?php endforeach; ?>
@@ -396,14 +458,14 @@ include 'includes/header_modern.php';
             </div>
         </div>
 
-        <!-- Needs Attention -->
+        <!-- Recent Late Arrivals -->
         <div class="card">
             <div class="card-header">
                 <h3 class="card-title">
-                    <i class="fas fa-exclamation-triangle" style="color: var(--red-500);"></i> 
-                    Needs Attention
+                    <i class="fas fa-exclamation-triangle" style="color: var(--warning-base);"></i> 
+                    Recent Late Arrivals
                 </h3>
-                <a href="manual_attendance.php" class="btn btn-sm btn-outline">Fix Records</a>
+                <a href="attendance_reports_sections.php" class="btn btn-sm btn-outline">View Report</a>
             </div>
             <div class="card-body" style="padding: 0; max-height: 400px; overflow-y: auto;">
                 <div id="needsAttentionList">
@@ -738,7 +800,7 @@ include 'includes/header_modern.php';
     }
     
     /**
-     * Populate Needs Attention List
+     * Populate Recent Late Arrivals List
      */
     function populateNeedsAttention() {
         const container = document.getElementById('needsAttentionList');
@@ -750,7 +812,7 @@ include 'includes/header_modern.php';
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-check-circle"></i>
-                    <p>All attendance records are complete!</p>
+                    <p>No recent late arrivals.</p>
                 </div>
             `;
             return;
@@ -772,7 +834,7 @@ include 'includes/header_modern.php';
                         </div>
                         <div class="attention-details">
                             <h4>${escapeHtml(record.first_name)} ${escapeHtml(record.last_name)}</h4>
-                            <p>${escapeHtml(record.section)} • ${dateStr} • In: ${timeIn} • Missing Time Out</p>
+                            <p>${escapeHtml(record.section)} • ${dateStr} • In: ${timeIn} • Late Arrival</p>
                         </div>
                     </div>
                     <span class="badge badge-error">${daysText}</span>

@@ -1113,6 +1113,7 @@ function openAddModal() {
         const uses = document.getElementById('uses_custom_schedule');
         if (uses) uses.checked = false;
     } catch(e) {}
+    const pmStart = document.getElementById('pm_start_time');
     if (pmStart) pmStart.value = '';
     const pmLate = document.getElementById('pm_late_threshold');
     if (pmLate) pmLate.value = '';

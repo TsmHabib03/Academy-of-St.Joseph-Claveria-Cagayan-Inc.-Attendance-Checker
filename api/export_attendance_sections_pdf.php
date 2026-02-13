@@ -171,20 +171,8 @@ try {
     }
     $timeInExpr = count($timeInParts) > 1 ? 'COALESCE(' . implode(', ', $timeInParts) . ')' : $timeInParts[0];
 
-    $timeOutParts = [];
-    if (columnExists($db, 'attendance', 'morning_time_out')) {
-        $timeOutParts[] = 'a.morning_time_out';
-    }
-    if (columnExists($db, 'attendance', 'afternoon_time_out')) {
-        $timeOutParts[] = 'a.afternoon_time_out';
-    }
-    if (columnExists($db, 'attendance', 'time_out')) {
-        $timeOutParts[] = 'a.time_out';
-    }
-    if (count($timeOutParts) === 0) {
-        $timeOutParts[] = 'NULL';
-    }
-    $timeOutExpr = count($timeOutParts) > 1 ? 'COALESCE(' . implode(', ', $timeOutParts) . ')' : $timeOutParts[0];
+    $hasLateMorningCol = columnExists($db, 'attendance', 'is_late_morning');
+    $hasLateAfternoonCol = columnExists($db, 'attendance', 'is_late_afternoon');
 
     $gradeColumn = null;
     if (columnExists($db, 'students', 'grade_level')) {
@@ -196,6 +184,7 @@ try {
 
     $hasMiddleName = columnExists($db, 'students', 'middle_name');
     $hasParentEmail = columnExists($db, 'students', 'email');
+    $hasAttendanceId = columnExists($db, 'attendance', 'id');
     $studentNameExpr = $hasMiddleName
         ? "CONCAT(s.first_name, ' ', IFNULL(CONCAT(s.middle_name, ' '), ''), s.last_name)"
         : "CONCAT(s.first_name, ' ', s.last_name)";
@@ -219,18 +208,41 @@ try {
     $end_formatted = date('Ymd', strtotime($end_date));
     $filename = "Attendance_{$section_name}_{$start_formatted}_to_{$end_formatted}.pdf";
 
-    $query = "SELECT 
-                    a.lrn,
-                    {$studentNameExpr} as student_name,
-                    a.section,
-                    a.date,
-                    {$timeInExpr} AS resolved_time_in,
-                    {$timeOutExpr} AS resolved_time_out,
-                    a.status,
-                    {$parentEmailExpr} as parent_email
-                FROM attendance a
-                INNER JOIN students s ON a.lrn = s.lrn
-                WHERE a.date BETWEEN :start_date AND :end_date";
+    if ($hasAttendanceId) {
+        $query = "SELECT 
+                        a.lrn,
+                        {$studentNameExpr} as student_name,
+                        a.section,
+                        a.date,
+                        {$timeInExpr} AS resolved_time_in,
+                        a.status,
+                        " . ($hasLateMorningCol ? 'a.is_late_morning' : '0') . " AS is_late_morning,
+                        " . ($hasLateAfternoonCol ? 'a.is_late_afternoon' : '0') . " AS is_late_afternoon,
+                        {$parentEmailExpr} as parent_email
+                    FROM attendance a
+                    INNER JOIN (
+                        SELECT lrn, date, MAX(id) AS latest_id
+                        FROM attendance
+                        WHERE date BETWEEN :start_date AND :end_date
+                        GROUP BY lrn, date
+                    ) latest ON latest.latest_id = a.id
+                    INNER JOIN students s ON a.lrn = s.lrn
+                    WHERE 1=1";
+    } else {
+        $query = "SELECT 
+                        a.lrn,
+                        {$studentNameExpr} as student_name,
+                        a.section,
+                        a.date,
+                        {$timeInExpr} AS resolved_time_in,
+                        a.status,
+                        " . ($hasLateMorningCol ? 'a.is_late_morning' : '0') . " AS is_late_morning,
+                        " . ($hasLateAfternoonCol ? 'a.is_late_afternoon' : '0') . " AS is_late_afternoon,
+                        {$parentEmailExpr} as parent_email
+                    FROM attendance a
+                    INNER JOIN students s ON a.lrn = s.lrn
+                    WHERE a.date BETWEEN :start_date AND :end_date";
+    }
 
     if ($gradeField) {
         $query .= " AND {$gradeField} NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6')
@@ -267,26 +279,33 @@ try {
     $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $formatted_records = [];
-    $completed_count = 0;
-    $incomplete_count = 0;
+    $scanned_in_count = 0;
+    $late_count = 0;
+    $absent_count = 0;
     $sections_set = [];
 
     foreach ($records as $record) {
         $time_in = $record['resolved_time_in'] ? date('h:i A', strtotime($record['resolved_time_in'])) : '-';
-        $time_out = $record['resolved_time_out'] ? date('h:i A', strtotime($record['resolved_time_out'])) : '-';
+        $hasTimeIn = !empty($record['resolved_time_in']);
+        if ($hasTimeIn) {
+            $scanned_in_count++;
+        }
 
-        $duration = '-';
-        if ($record['resolved_time_in'] && $record['resolved_time_out']) {
-            $time_in_obj = strtotime($record['resolved_time_in']);
-            $time_out_obj = strtotime($record['resolved_time_out']);
-            $duration_seconds = $time_out_obj - $time_in_obj;
-            $hours = floor($duration_seconds / 3600);
-            $minutes = floor(($duration_seconds % 3600) / 60);
-            $duration = sprintf('%d hrs %d mins', $hours, $minutes);
-            $completed_count++;
-        } elseif ($record['resolved_time_in']) {
-            $duration = 'In Progress';
-            $incomplete_count++;
+        $isLate = ((int)($record['is_late_morning'] ?? 0) === 1)
+            || ((int)($record['is_late_afternoon'] ?? 0) === 1)
+            || (strtolower((string)($record['status'] ?? '')) === 'late');
+        if ($hasTimeIn && $isLate) {
+            $late_count++;
+        }
+
+        $status = strtolower((string)($record['status'] ?? ''));
+        if ($status === 'time_in' || $status === 'time_out') {
+            $status = $isLate ? 'late' : 'present';
+        } elseif ($status === '') {
+            $status = $hasTimeIn ? ($isLate ? 'late' : 'present') : 'absent';
+        }
+        if ($status === 'absent') {
+            $absent_count++;
         }
 
         if (!in_array($record['section'], $sections_set, true)) {
@@ -299,15 +318,12 @@ try {
             'section' => $record['section'],
             'date_formatted' => date('M j, Y', strtotime($record['date'])),
             'time_in' => $time_in,
-            'time_out' => $time_out,
-            'duration' => $duration,
-            'status_text' => $record['resolved_time_out'] ? 'Completed' : 'Incomplete'
+            'status_text' => ucwords(str_replace('_', ' ', $status))
         ];
     }
 
     $total_records = count($formatted_records);
     $sections_count = count($sections_set);
-    $completion_rate = $total_records > 0 ? round(($completed_count / $total_records) * 100, 1) : 0;
 
     $pdf = new SimplePdf('L');
     $marginLeft = 30;
@@ -318,13 +334,11 @@ try {
 
     $columns = [
         ['label' => 'LRN', 'key' => 'lrn', 'width' => 80, 'max' => 13],
-        ['label' => 'Student Name', 'key' => 'student_name', 'width' => 200, 'max' => 38],
+        ['label' => 'Student Name', 'key' => 'student_name', 'width' => 220, 'max' => 42],
         ['label' => 'Section', 'key' => 'section', 'width' => 80, 'max' => 16],
         ['label' => 'Date', 'key' => 'date_formatted', 'width' => 80, 'max' => 12],
-        ['label' => 'Time In', 'key' => 'time_in', 'width' => 60, 'max' => 10],
-        ['label' => 'Time Out', 'key' => 'time_out', 'width' => 60, 'max' => 10],
-        ['label' => 'Duration', 'key' => 'duration', 'width' => 80, 'max' => 12],
-        ['label' => 'Status', 'key' => 'status_text', 'width' => 80, 'max' => 12],
+        ['label' => 'Time In', 'key' => 'time_in', 'width' => 90, 'max' => 12],
+        ['label' => 'Status', 'key' => 'status_text', 'width' => 100, 'max' => 14],
     ];
 
     $tableWidth = array_sum(array_column($columns, 'width'));
@@ -403,10 +417,11 @@ try {
 
     $summaryLines = [
         'Total Records: ' . $total_records,
-        'Completed (Time In & Out): ' . $completed_count,
-        'Incomplete (Time In Only): ' . $incomplete_count,
+        'Scanned In: ' . $scanned_in_count,
+        'Late Arrivals: ' . $late_count,
+        'On-time Arrivals: ' . max(0, $scanned_in_count - $late_count),
+        'Absent Records: ' . $absent_count,
         'Sections Covered: ' . $sections_count,
-        'Completion Rate: ' . $completion_rate . '%'
     ];
 
     if ($y < $marginBottom + (count($summaryLines) + 2) * $lineHeight) {

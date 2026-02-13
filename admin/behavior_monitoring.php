@@ -919,7 +919,14 @@ function runAnalysis() {
             if (data.success) {
                 let html = '<div class="analysis-results">';
                 html += '<div class="analysis-result-item info"><i class="fas fa-users"></i> Students analyzed: ' + data.students_analyzed + '</div>';
+                if (typeof data.teachers_analyzed !== 'undefined') {
+                    html += '<div class="analysis-result-item info"><i class="fas fa-chalkboard-teacher"></i> Teachers analyzed: ' + data.teachers_analyzed + '</div>';
+                }
                 html += '<div class="analysis-result-item warning"><i class="fas fa-bell"></i> New alerts generated: ' + data.new_alerts + '</div>';
+                if (typeof data.new_alerts_students !== 'undefined' || typeof data.new_alerts_teachers !== 'undefined') {
+                    html += '<div class="analysis-result-item warning"><i class="fas fa-user-graduate"></i> Student alerts: ' + (data.new_alerts_students || 0) + '</div>';
+                    html += '<div class="analysis-result-item warning"><i class="fas fa-user-tie"></i> Teacher alerts: ' + (data.new_alerts_teachers || 0) + '</div>';
+                }
                 html += '<div class="analysis-result-item success"><i class="fas fa-clock"></i> Analysis completed in ' + data.duration + ' seconds</div>';
                 html += '</div>';
                 html += '<div class="form-actions"><button class="btn btn-primary" onclick="location.reload()"><i class="fas fa-sync"></i> Refresh Page</button></div>';

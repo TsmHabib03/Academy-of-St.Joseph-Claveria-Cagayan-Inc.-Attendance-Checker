@@ -22,6 +22,39 @@ $additionalCSS = ['../css/manual-attendance-modern.css?v=' . time()];
 // Handle form submissions
 $message = '';
 $messageType = '';
+$validateScheduleTimes = function (array $timeFields): ?string {
+    foreach ($timeFields as $k => $v) {
+        $d = DateTime::createFromFormat('H:i', (string)$v);
+        if (!$d || $d->format('H:i') !== $v) {
+            return "Invalid time format for {$k}: {$v}";
+        }
+    }
+
+    $morningStart = strtotime($timeFields['morning_start']);
+    $morningEnd = strtotime($timeFields['morning_end']);
+    $morningLate = strtotime($timeFields['morning_late_after']);
+    $afternoonStart = strtotime($timeFields['afternoon_start']);
+    $afternoonEnd = strtotime($timeFields['afternoon_end']);
+    $afternoonLate = strtotime($timeFields['afternoon_late_after']);
+
+    if ($morningStart >= $morningEnd) {
+        return 'Morning session start must be earlier than morning session end.';
+    }
+    if ($morningLate < $morningStart || $morningLate > $morningEnd) {
+        return 'Morning "Late After" must be within the morning session window.';
+    }
+    if ($afternoonStart >= $afternoonEnd) {
+        return 'Afternoon session start must be earlier than afternoon session end.';
+    }
+    if ($afternoonLate < $afternoonStart || $afternoonLate > $afternoonEnd) {
+        return 'Afternoon "Late After" must be within the afternoon session window.';
+    }
+    if ($morningEnd > $afternoonStart) {
+        return 'Morning session end must not be later than afternoon session start.';
+    }
+
+    return null;
+};
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -43,7 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "Schedule name is required.";
             $messageType = "error";
         } else {
-            // Validate time inputs (format H:i)
             $timeFields = [
                 'morning_start' => $morningStart,
                 'morning_end' => $morningEnd,
@@ -52,13 +84,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'afternoon_end' => $afternoonEnd,
                 'afternoon_late_after' => $afternoonLateAfter,
             ];
-            foreach ($timeFields as $k => $v) {
-                $d = DateTime::createFromFormat('H:i', $v);
-                if (!$d || $d->format('H:i') !== $v) {
-                    $message = "Invalid time format for {$k}: {$v}";
-                    $messageType = 'error';
-                    break;
-                }
+            $timeValidationError = $validateScheduleTimes($timeFields);
+            if ($timeValidationError !== null) {
+                $message = $timeValidationError;
+                $messageType = 'error';
             }
 
             if ($messageType !== 'error') {
@@ -105,47 +134,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $isActive = isset($_POST['is_active']) ? 1 : 0;
 
-        // Validate time inputs for edit as well (format H:i)
-        $timeFields = [
-            'morning_start' => $morningStart,
-            'morning_end' => $morningEnd,
-            'morning_late_after' => $morningLateAfter,
-            'afternoon_start' => $afternoonStart,
-            'afternoon_end' => $afternoonEnd,
-            'afternoon_late_after' => $afternoonLateAfter,
-        ];
-        foreach ($timeFields as $k => $v) {
-            $d = DateTime::createFromFormat('H:i', $v);
-            if (!$d || $d->format('H:i') !== $v) {
-                $message = "Invalid time format for {$k}: {$v}";
-                $messageType = 'error';
-                break;
-            }
-        }
-
-        try {
-            $stmt = $pdo->prepare("
-                UPDATE attendance_schedules 
-                SET schedule_name = ?, grade_level = ?, section_id = ?,
-                    morning_start = ?, morning_end = ?, morning_late_after = ?,
-                    afternoon_start = ?, afternoon_end = ?, afternoon_late_after = ?,
-                    is_active = ?, updated_at = NOW()
-                WHERE id = ?
-            ");
-            $stmt->execute([
-                $scheduleName, $gradeLevel ?: null, $sectionId,
-                $morningStart, $morningEnd, $morningLateAfter,
-                $afternoonStart, $afternoonEnd, $afternoonLateAfter,
-                $isActive, $scheduleId
-            ]);
-            
-            logAdminActivity('EDIT_SCHEDULE', "Updated schedule: {$scheduleName}");
-            
-            $message = "Schedule updated successfully!";
-            $messageType = "success";
-        } catch (Exception $e) {
-            $message = "Error updating schedule: " . $e->getMessage();
+        if (empty($scheduleName)) {
+            $message = "Schedule name is required.";
             $messageType = "error";
+        } else {
+            $timeFields = [
+                'morning_start' => $morningStart,
+                'morning_end' => $morningEnd,
+                'morning_late_after' => $morningLateAfter,
+                'afternoon_start' => $afternoonStart,
+                'afternoon_end' => $afternoonEnd,
+                'afternoon_late_after' => $afternoonLateAfter,
+            ];
+            $timeValidationError = $validateScheduleTimes($timeFields);
+            if ($timeValidationError !== null) {
+                $message = $timeValidationError;
+                $messageType = 'error';
+            } else {
+                try {
+                    $stmt = $pdo->prepare("
+                        UPDATE attendance_schedules 
+                        SET schedule_name = ?, grade_level = ?, section_id = ?,
+                            morning_start = ?, morning_end = ?, morning_late_after = ?,
+                            afternoon_start = ?, afternoon_end = ?, afternoon_late_after = ?,
+                            is_active = ?, updated_at = NOW()
+                        WHERE id = ?
+                    ");
+                    $stmt->execute([
+                        $scheduleName, $gradeLevel ?: null, $sectionId,
+                        $morningStart, $morningEnd, $morningLateAfter,
+                        $afternoonStart, $afternoonEnd, $afternoonLateAfter,
+                        $isActive, $scheduleId
+                    ]);
+                    
+                    logAdminActivity('EDIT_SCHEDULE', "Updated schedule: {$scheduleName}");
+                    
+                    $message = "Schedule updated successfully!";
+                    $messageType = "success";
+                } catch (Exception $e) {
+                    $message = "Error updating schedule: " . $e->getMessage();
+                    $messageType = "error";
+                }
+            }
         }
     } elseif ($action === 'delete_schedule') {
         $scheduleId = intval($_POST['schedule_id']);

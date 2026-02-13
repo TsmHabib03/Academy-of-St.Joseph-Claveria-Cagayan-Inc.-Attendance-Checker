@@ -33,20 +33,8 @@ try {
     }
     $timeInExpr = count($timeInParts) > 1 ? 'COALESCE(' . implode(', ', $timeInParts) . ')' : $timeInParts[0];
 
-    $timeOutParts = [];
-    if (columnExists($db, 'attendance', 'morning_time_out')) {
-        $timeOutParts[] = 'a.morning_time_out';
-    }
-    if (columnExists($db, 'attendance', 'afternoon_time_out')) {
-        $timeOutParts[] = 'a.afternoon_time_out';
-    }
-    if (columnExists($db, 'attendance', 'time_out')) {
-        $timeOutParts[] = 'a.time_out';
-    }
-    if (count($timeOutParts) === 0) {
-        $timeOutParts[] = 'NULL';
-    }
-    $timeOutExpr = count($timeOutParts) > 1 ? 'COALESCE(' . implode(', ', $timeOutParts) . ')' : $timeOutParts[0];
+    $hasLateMorningCol = columnExists($db, 'attendance', 'is_late_morning');
+    $hasLateAfternoonCol = columnExists($db, 'attendance', 'is_late_afternoon');
 
     $gradeColumn = null;
     if (columnExists($db, 'students', 'grade_level')) {
@@ -58,6 +46,7 @@ try {
 
     $hasMiddleName = columnExists($db, 'students', 'middle_name');
     $hasParentEmail = columnExists($db, 'students', 'email');
+    $hasAttendanceId = columnExists($db, 'attendance', 'id');
     $studentNameExpr = $hasMiddleName
         ? "CONCAT(s.first_name, ' ', IFNULL(CONCAT(s.middle_name, ' '), ''), s.last_name)"
         : "CONCAT(s.first_name, ' ', s.last_name)";
@@ -79,20 +68,45 @@ try {
         throw new Exception('Invalid date format. Use YYYY-MM-DD');
     }
     
-        // Build query - prefer V3 columns (morning/afternoon) with fallback to legacy `time_in`/`time_out`.
-        $query = "SELECT 
-                                a.id,
-                                a.lrn,
-                                a.section,
-                                a.date,
-                                {$timeInExpr} AS resolved_time_in,
-                                {$timeOutExpr} AS resolved_time_out,
-                                a.status,
-                                {$studentNameExpr} as student_name,
-                                {$parentEmailExpr} as parent_email
-                            FROM attendance a
-                            INNER JOIN students s ON a.lrn = s.lrn
-                            WHERE a.date BETWEEN :start_date AND :end_date";
+        // Build query - prefer V3 columns (morning/afternoon) with fallback to legacy `time_in`.
+        // If duplicate rows exist for the same student/date, keep only the latest row in reports.
+        if ($hasAttendanceId) {
+            $query = "SELECT 
+                                    a.id,
+                                    a.lrn,
+                                    a.section,
+                                    a.date,
+                                    {$timeInExpr} AS resolved_time_in,
+                                    a.status,
+                                    " . ($hasLateMorningCol ? 'a.is_late_morning' : '0') . " AS is_late_morning,
+                                    " . ($hasLateAfternoonCol ? 'a.is_late_afternoon' : '0') . " AS is_late_afternoon,
+                                    {$studentNameExpr} as student_name,
+                                    {$parentEmailExpr} as parent_email
+                                FROM attendance a
+                                INNER JOIN (
+                                    SELECT lrn, date, MAX(id) AS latest_id
+                                    FROM attendance
+                                    WHERE date BETWEEN :start_date AND :end_date
+                                    GROUP BY lrn, date
+                                ) latest ON latest.latest_id = a.id
+                                INNER JOIN students s ON a.lrn = s.lrn
+                                WHERE 1=1";
+        } else {
+            $query = "SELECT 
+                                    a.id,
+                                    a.lrn,
+                                    a.section,
+                                    a.date,
+                                    {$timeInExpr} AS resolved_time_in,
+                                    a.status,
+                                    " . ($hasLateMorningCol ? 'a.is_late_morning' : '0') . " AS is_late_morning,
+                                    " . ($hasLateAfternoonCol ? 'a.is_late_afternoon' : '0') . " AS is_late_afternoon,
+                                    {$studentNameExpr} as student_name,
+                                    {$parentEmailExpr} as parent_email
+                                FROM attendance a
+                                INNER JOIN students s ON a.lrn = s.lrn
+                                WHERE a.date BETWEEN :start_date AND :end_date";
+        }
 
         if ($gradeField) {
             $query .= " AND {$gradeField} NOT IN ('K', 'Kindergarten', '1', '2', '3', '4', '5', '6', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6')
@@ -134,30 +148,33 @@ try {
     
     // Format records
     $formatted_records = [];
-    $completed_count = 0;
-    $incomplete_count = 0;
+    $scanned_in_count = 0;
+    $late_count = 0;
     $sections_set = [];
     
     foreach ($records as $record) {
-        $time_in_obj = $record['resolved_time_in'] ? strtotime($record['resolved_time_in']) : null;
-        $time_out_obj = $record['resolved_time_out'] ? strtotime($record['resolved_time_out']) : null;
-        
-        // Calculate duration
-        $duration = '-';
-        if ($time_in_obj && $time_out_obj) {
-            $duration_seconds = $time_out_obj - $time_in_obj;
-            $hours = floor($duration_seconds / 3600);
-            $minutes = floor(($duration_seconds % 3600) / 60);
-            $duration = sprintf('%d hrs %d mins', $hours, $minutes);
-            $completed_count++;
-        } elseif ($time_in_obj) {
-            $duration = 'In Progress';
-            $incomplete_count++;
+        $hasTimeIn = !empty($record['resolved_time_in']);
+        if ($hasTimeIn) {
+            $scanned_in_count++;
+        }
+
+        $isLate = ((int)($record['is_late_morning'] ?? 0) === 1)
+            || ((int)($record['is_late_afternoon'] ?? 0) === 1)
+            || (strtolower((string)($record['status'] ?? '')) === 'late');
+        if ($hasTimeIn && $isLate) {
+            $late_count++;
         }
         
         // Track unique sections
         if (!in_array($record['section'], $sections_set)) {
             $sections_set[] = $record['section'];
+        }
+
+        $status = strtolower((string)($record['status'] ?? ''));
+        if ($status === 'time_in' || $status === 'time_out') {
+            $status = $isLate ? 'late' : 'present';
+        } elseif ($status === '') {
+            $status = $hasTimeIn ? ($isLate ? 'late' : 'present') : 'absent';
         }
         
         $formatted_records[] = [
@@ -168,9 +185,8 @@ try {
             'date' => $record['date'],
             'date_formatted' => date('F j, Y', strtotime($record['date'])),
             'time_in' => $record['resolved_time_in'] ? date('h:i A', strtotime($record['resolved_time_in'])) : null,
-            'time_out' => $record['resolved_time_out'] ? date('h:i A', strtotime($record['resolved_time_out'])) : null,
-            'duration' => $duration,
-            'status' => $record['status'],
+            'status' => $status,
+            'is_late' => $isLate,
             'parent_email' => $record['parent_email']
         ];
     }
@@ -178,8 +194,9 @@ try {
     // Calculate summary
     $summary = [
         'total_records' => count($formatted_records),
-        'completed_count' => $completed_count,
-        'incomplete_count' => $incomplete_count,
+        'scanned_in_count' => $scanned_in_count,
+        'late_count' => $late_count,
+        'on_time_count' => max(0, $scanned_in_count - $late_count),
         'sections_count' => count($sections_set),
         'date_range' => date('M j, Y', strtotime($start_date)) . ' - ' . date('M j, Y', strtotime($end_date)),
         'sections' => $sections_set

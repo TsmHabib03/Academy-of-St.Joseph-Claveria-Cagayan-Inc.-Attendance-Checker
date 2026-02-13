@@ -17,6 +17,25 @@ $messageType = 'info';
 $editMode = false;
 $editStudent = null;
 
+/**
+ * Normalize PH mobile number into 09XXXXXXXXX format.
+ * Returns null when format is invalid.
+ */
+function normalizePhilippineMobile($mobileNumber) {
+    $digitsOnly = preg_replace('/\D+/', '', (string)$mobileNumber);
+
+    // Accept +639XXXXXXXXX or 639XXXXXXXXX and convert to 09XXXXXXXXX
+    if (preg_match('/^63\d{10}$/', $digitsOnly)) {
+        $digitsOnly = '0' . substr($digitsOnly, 2);
+    }
+
+    if (preg_match('/^09\d{9}$/', $digitsOnly)) {
+        return $digitsOnly;
+    }
+
+    return null;
+}
+
 // Check if editing
 if (isset($_GET['id'])) {
     $editMode = true;
@@ -126,7 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lastName = trim($_POST['last_name'] ?? '');
         $middleName = trim($_POST['middle_name'] ?? '');
         $sex = trim($_POST['sex'] ?? '');
-        $mobileNumber = trim($_POST['mobile_number'] ?? '');
+        $mobileNumberInput = trim($_POST['mobile_number'] ?? '');
+        $mobileNumber = normalizePhilippineMobile($mobileNumberInput);
         $email = trim($_POST['email'] ?? '');
         $class = trim($_POST['class'] ?? '');
         $section = trim($_POST['section'] ?? '');
@@ -144,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Validation
-        if (empty($lrn) || empty($firstName) || empty($lastName) || empty($sex) || empty($mobileNumber) || empty($class) || empty($section)) {
+        if (empty($lrn) || empty($firstName) || empty($lastName) || empty($sex) || empty($mobileNumberInput) || empty($class) || empty($section)) {
             $message = "All required fields must be filled.";
             $messageType = "error";
         } elseif (!in_array($sex, ['Male', 'Female'])) {
@@ -153,11 +173,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!preg_match('/^\d{11,13}$/', $lrn)) {
             $message = "LRN must be 11-13 digits only.";
             $messageType = "error";
-        } elseif (!preg_match('/^(09|\+639)\d{9}$/', preg_replace('/[^0-9+]/', '', $mobileNumber))) {
-            $message = "Please enter a valid Philippine mobile number (09XX-XXX-XXXX).";
+        } elseif ($mobileNumber === null) {
+            $message = "Please enter a valid Philippine mobile number (e.g., 09XXXXXXXXX or +639XXXXXXXXX).";
             $messageType = "error";
         } elseif (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $message = "Please enter a valid email address.";
+            $messageType = "error";
+        } elseif (strlen($email) > 50) {
+            $message = "Email address is too long (maximum 50 characters).";
             $messageType = "error";
         } elseif (!preg_match('/^Grade\s+(7|8|9|10|11|12)$/i', $class)) {
             $message = "Grade Level must be Grade 7 to Grade 12 (Junior/Senior High School only).";
@@ -231,11 +254,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         // Update student
                         // Update student with both mobile and email
-                        $stmt = $pdo->prepare("
-                            UPDATE students 
-                            SET lrn = ?, first_name = ?, last_name = ?, middle_name = ?, sex = ?, mobile_number = ?, email = ?, class = ?, section = ?, updated_at = NOW() 
-                            WHERE id = ?
-                        ");
+                        $hasStudentsUpdatedAt = columnExists($pdo, 'students', 'updated_at');
+                        if ($hasStudentsUpdatedAt) {
+                            $stmt = $pdo->prepare("
+                                UPDATE students 
+                                SET lrn = ?, first_name = ?, last_name = ?, middle_name = ?, sex = ?, mobile_number = ?, email = ?, class = ?, section = ?, updated_at = NOW() 
+                                WHERE id = ?
+                            ");
+                        } else {
+                            $stmt = $pdo->prepare("
+                                UPDATE students 
+                                SET lrn = ?, first_name = ?, last_name = ?, middle_name = ?, sex = ?, mobile_number = ?, email = ?, class = ?, section = ? 
+                                WHERE id = ?
+                            ");
+                        }
                         $stmt->execute([$lrn, $firstName, $lastName, $middleName, $sex, $mobileNumber, $email, $class, $section, $editStudent['id']]);
                         
                         // If LRN changed, regenerate QR code
@@ -264,7 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             } catch (Exception $e) {
-                $message = "Database error occurred. Please try again.";
+                $message = "Database error occurred. Please verify email length (max 50) and mobile format (09XXXXXXXXX), then try again.";
                 $messageType = "error";
                 error_log("Student form error: " . $e->getMessage());
             }
@@ -962,8 +994,6 @@ include 'includes/header_modern.php';
                     </div>
                 </div>
                 
-                <!-- Note: Email field removed - mobile stored in email column until migration -->
-                
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="email">
@@ -974,7 +1004,7 @@ include 'includes/header_modern.php';
                                id="email" 
                                name="email" 
                                class="form-input" 
-                               maxlength="100"
+                               maxlength="50"
                                placeholder="parent@example.com"
                                value="<?php echo sanitizeOutput($editStudent['email'] ?? ''); ?>">
                         <small class="form-help">Optional email for additional notifications</small>

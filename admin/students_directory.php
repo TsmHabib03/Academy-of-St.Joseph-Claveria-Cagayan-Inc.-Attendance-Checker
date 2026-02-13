@@ -344,7 +344,7 @@ include 'includes/header_modern.php';
                 <label for="search">Search</label>
                 <input type="text" id="search" name="search" 
                        value="<?php echo htmlspecialchars($searchTerm); ?>"
-                       placeholder="Name or Student ID">
+                       placeholder="Name or LRN">
             </div>
             
             <div class="filter-actions">
@@ -416,11 +416,11 @@ include 'includes/header_modern.php';
                                         ?>
                                     </h4>
                                     <?php
-                                    $displayId = $student['lrn'] ?? $student['student_id'] ?? $student['id'] ?? '';
+                                    $displayLrn = $student['lrn'] ?? $student['student_id'] ?? $student['id'] ?? '';
                                     $monthly = isset($student['monthly_attendance']) ? (int)$student['monthly_attendance'] : 0;
                                     $lastAtt = $student['last_attendance'] ?? null;
                                     ?>
-                                    <div class="student-id">ID: <?php echo htmlspecialchars($displayId); ?></div>
+                                    <div class="student-id">LRN: <?php echo htmlspecialchars($displayLrn); ?></div>
                                     <div class="student-meta">
                                         <?php if ($lastAtt): ?>
                                             <span class="last-seen" title="Last Attendance">
@@ -1044,7 +1044,7 @@ function viewStudentDetails(idValue, idType) {
                         <div class="detail-section">
                             <h4><i class="fas fa-id-card"></i> Personal Information</h4>
                             <div class="detail-row">
-                                <span class="detail-label"><i class="fas fa-hashtag"></i> Student ID:</span>
+                                <span class="detail-label"><i class="fas fa-hashtag"></i> LRN (Learner Reference Number):</span>
                                 <span class="detail-value">${student.lrn || student.student_id || student.id || 'N/A'}</span>
                             </div>
                             <div class="detail-row">

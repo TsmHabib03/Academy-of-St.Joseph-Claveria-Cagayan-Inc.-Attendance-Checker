@@ -30,25 +30,74 @@ try {
     // Initialize analyzer
     $analyzer = new BehaviorAnalyzer($pdo);
     
-    // Get all students (students table doesn't have status column, get all)
+    // Get all students
     $studentsStmt = $pdo->query("SELECT id FROM students");
     $students = $studentsStmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    $newAlerts = 0;
+
+    // Get teacher identifiers (prefer employee_number, then employee_id, then id)
+    $teacherIdentifiers = [];
+    try {
+        $teacherTableStmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'teachers'");
+        $teacherTableStmt->execute();
+        $hasTeachersTable = ((int)$teacherTableStmt->fetchColumn()) > 0;
+
+        if ($hasTeachersTable) {
+            $teacherColsStmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'teachers'");
+            $teacherColsStmt->execute();
+            $teacherCols = $teacherColsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            $idExpr = null;
+            if (in_array('employee_number', $teacherCols, true) && in_array('employee_id', $teacherCols, true)) {
+                $idExpr = "COALESCE(NULLIF(employee_number, ''), NULLIF(employee_id, ''), id)";
+            } elseif (in_array('employee_number', $teacherCols, true)) {
+                $idExpr = "COALESCE(NULLIF(employee_number, ''), id)";
+            } elseif (in_array('employee_id', $teacherCols, true)) {
+                $idExpr = "COALESCE(NULLIF(employee_id, ''), id)";
+            } elseif (in_array('id', $teacherCols, true)) {
+                $idExpr = "id";
+            }
+
+            if ($idExpr !== null) {
+                $teachersStmt = $pdo->query("SELECT {$idExpr} AS identifier FROM teachers");
+                $teacherIdentifiers = $teachersStmt->fetchAll(PDO::FETCH_COLUMN);
+                $teacherIdentifiers = array_values(array_unique(array_filter(array_map('strval', $teacherIdentifiers), static function ($v) {
+                    return trim($v) !== '';
+                })));
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Behavior analysis teacher load warning: " . $e->getMessage());
+        $teacherIdentifiers = [];
+    }
+
+    $newAlertsStudents = 0;
+    $newAlertsTeachers = 0;
     $studentsAnalyzed = count($students);
+    $teachersAnalyzed = count($teacherIdentifiers);
     
     // Analyze each student
     foreach ($students as $studentId) {
         $alerts = $analyzer->analyze($studentId, 'student');
-        $newAlerts += count($alerts);
+        $newAlertsStudents += count($alerts);
+    }
+
+    // Analyze each teacher
+    foreach ($teacherIdentifiers as $teacherId) {
+        $alerts = $analyzer->analyze($teacherId, 'teacher');
+        $newAlertsTeachers += count($alerts);
     }
     
     $duration = round(microtime(true) - $startTime, 2);
+    $newAlertsTotal = $newAlertsStudents + $newAlertsTeachers;
     
     echo json_encode([
         'success' => true,
         'students_analyzed' => $studentsAnalyzed,
-        'new_alerts' => $newAlerts,
+        'teachers_analyzed' => $teachersAnalyzed,
+        'users_analyzed' => $studentsAnalyzed + $teachersAnalyzed,
+        'new_alerts_students' => $newAlertsStudents,
+        'new_alerts_teachers' => $newAlertsTeachers,
+        'new_alerts' => $newAlertsTotal,
         'duration' => $duration
     ]);
     

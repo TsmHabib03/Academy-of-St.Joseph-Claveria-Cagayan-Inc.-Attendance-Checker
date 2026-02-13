@@ -1063,7 +1063,7 @@ ALTER TABLE `teachers`
 --
 ALTER TABLE `teacher_attendance`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_teacher_daily` (`date`),
+  ADD UNIQUE KEY `unique_teacher_daily` (`employee_number`,`date`),
   ADD KEY `idx_date` (`date`),
   ADD KEY `idx_status` (`status`),
   ADD KEY `ix_teacher_attendance_employee_number` (`employee_number`);
