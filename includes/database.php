@@ -22,7 +22,7 @@ class Database {
         $this->host = getenv('DB_HOST') ?: 'localhost';
         $this->db_name = getenv('DB_NAME') ?: 'asj_attendease_db';
         $this->username = getenv('DB_USER') ?: 'root';
-        $this->password = getenv('DB_PASS') ?: 'muning0328';
+        $this->password = getenv('DB_PASS') ?: '';
     }
 
     public function getConnection() {
